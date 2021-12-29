@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SonelMapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\Model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MainWindow.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraFrame.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="GlfWindow.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraFrameManip.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="GlfCameraWindow.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="InspectModeManip.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="FlyModeManip.cpp">
+      <Filter>Source Files\UI</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\optix7.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\CUDABuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\LaunchParams.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SonelMapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\Model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MainWindow.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="GlfCameraWindow.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="GlfWindow.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Header Files\UI\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraFrame.h">
+      <Filter>Header Files\UI\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraFrameManip.h">
+      <Filter>Header Files\UI\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="InspectModeManip.h">
+      <Filter>Header Files\UI\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="FlyModeManip.h">
+      <Filter>Header Files\UI\Camera</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\devicePrograms.cu">
+      <Filter>Source Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\brent\Git\sonel-mapping\CMakeFiles\831d8131ab6d2fb821ae48653600b772\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{8BD5F35D-86EA-3D74-971B-2240021BE7AA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{B4BAB762-0952-35B9-B6EC-819722A24119}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{6BB0998F-6EEF-3967-B9E4-3E7FDA8E8DF3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\UI">
+      <UniqueIdentifier>{889acbcb-e891-48fc-9bf2-8842952ae7ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\UI">
+      <UniqueIdentifier>{b541e156-4bc1-4d60-8857-4dbbda2e0ca8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\UI\Camera">
+      <UniqueIdentifier>{3824c8c7-a38f-400f-ae11-6123e7bf7532}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
