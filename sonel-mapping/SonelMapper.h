@@ -21,12 +21,13 @@
 #include "LaunchParams.h"
 #include "Camera.h"
 #include "Model.h"
+#include "SoundSource.h"
 
 class SonelMapper {
 	public:
 		/*! constructor - performs all setup, including initializing
 		  optix, creates module, pipeline, programs, SBT, etc. */
-		SonelMapper(const Model* model, const QuadLight& light);
+		SonelMapper(const Model* model, const QuadLight& light, SoundSource soundSource, float echogramDuration, float soundSpeed, float earSize);
 
 		/*! render one frame */
 		void render();
@@ -82,6 +83,7 @@ class SonelMapper {
 		void buildRaygenRecords();
 		void buildMissRecords();
 		void buildHitgroupRecords();
+		void initSonelBuffer();
 
 	protected:
 		/*! @{ CUDA device context and stream that optix pipeline will run
@@ -122,6 +124,7 @@ class SonelMapper {
 		/*! @} */
 
 		CUDABuffer colorBuffer;
+		CUDABuffer sonelMapBuffer;
 
 		/*! the camera we are to render with. */
 		Camera lastSetCamera;

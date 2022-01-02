@@ -264,6 +264,8 @@ SET(CUDA_NVCC_DEPEND
  "C:/Users/brent/Git/sonel-mapping/common/gdt/gdt/math/vec/rotate.h"
  "C:/Users/brent/Git/sonel-mapping/common/gdt/gdt/random/random.h"
  "C:/Users/brent/Git/sonel-mapping/sonel-mapping/LaunchParams.h"
+ "C:/Users/brent/Git/sonel-mapping/sonel-mapping/Sonel.h"
+ "C:/Users/brent/Git/sonel-mapping/sonel-mapping/SoundSource.h"
  "C:/Users/brent/Git/sonel-mapping/sonel-mapping/devicePrograms.cu"
  "C:/Users/brent/Git/sonel-mapping/sonel-mapping/optix7.h"
 )

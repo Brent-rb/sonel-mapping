@@ -16,7 +16,11 @@ public:
 		const Model* model,
 		const Camera& camera,
 		const QuadLight& light,
-		const float worldScale
+		const float worldScale,
+		SoundSource soundSource, 
+		float echogramDuration, 
+		float soundSpeed, 
+		float earSize
 	);
 
 	virtual void render() override;
@@ -25,6 +29,6 @@ public:
 
 	vec2i fbSize;
 	GLuint fbTexture{ 0 };
-	SonelMapper mainWindow;
+	SonelMapper sonelMapper;
 	std::vector<uint32_t> pixels;
 };

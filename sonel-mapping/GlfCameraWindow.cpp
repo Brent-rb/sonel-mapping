@@ -12,7 +12,7 @@ GlfCameraWindow::GlfCameraWindow(
 ): GLFWindow(title), cameraFrame(worldScale) {
 	cameraFrame.setOrientation(camera_from, camera_at, camera_up);
 	enableFlyMode();
-	enableInspectMode();
+	//enableInspectMode();
 }
 
 inline void GlfCameraWindow::enableFlyMode() {

@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "GLFWindow.h"
+#include "GlfWindow.h"
 
 using namespace gdt;
 

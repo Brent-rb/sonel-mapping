@@ -9,7 +9,5 @@ C:/Users/brent/Git/sonel-mapping/common/3rdParty/glfw/CMakeFiles/INSTALL.dir
 C:/Users/brent/Git/sonel-mapping/common/3rdParty/glfw/CMakeFiles/ALL_BUILD.dir
 C:/Users/brent/Git/sonel-mapping/common/3rdParty/glfw/src/CMakeFiles/glfw.dir
 C:/Users/brent/Git/sonel-mapping/common/3rdParty/glfw/src/CMakeFiles/INSTALL.dir
-C:/Users/brent/Git/sonel-mapping/common/glfWindow/CMakeFiles/glfWindow.dir
-C:/Users/brent/Git/sonel-mapping/common/glfWindow/CMakeFiles/INSTALL.dir
 C:/Users/brent/Git/sonel-mapping/sonel-mapping/CMakeFiles/sonel-mapping.dir
 C:/Users/brent/Git/sonel-mapping/sonel-mapping/CMakeFiles/INSTALL.dir

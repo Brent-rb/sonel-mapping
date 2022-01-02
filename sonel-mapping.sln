@@ -1,8 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
-VisualStudioVersion = 16.0.32002.261
-MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CMakePredefinedTargets", "CMakePredefinedTargets", "{2FB6C544-C212-3287-A2A2-10BEA42904DB}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GLFW3", "GLFW3", "{9EFDC148-5B6F-3609-B32D-53892CC8256B}"
@@ -20,6 +18,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "INSTALL", "INSTALL.vcxproj"
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ZERO_CHECK", "ZERO_CHECK.vcxproj", "{9ACA0D08-1374-3139-A64F-1AD4CF079BE1}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gdt", "common\gdt\gdt.vcxproj", "{477D7A22-C057-3A0B-91AF-0613F9E6E668}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -67,9 +67,6 @@ Global
 		{92D16F24-85C0-3DAE-A60F-D21FE29C699D}.Release|x64.ActiveCfg = Release|x64
 		{92D16F24-85C0-3DAE-A60F-D21FE29C699D}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E3E54B8A-6638-31AC-AF61-D982758A52D6} = {2FB6C544-C212-3287-A2A2-10BEA42904DB}
 		{DD5FFD44-88A5-3814-85A4-60D7D8F34897} = {2FB6C544-C212-3287-A2A2-10BEA42904DB}
@@ -78,5 +75,7 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F8CF036A-A6B9-31B7-B51C-41D690A8C54C}
+	EndGlobalSection
+	GlobalSection(ExtensibilityAddIns) = postSolution
 	EndGlobalSection
 EndGlobal

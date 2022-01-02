@@ -17,6 +17,7 @@
 #include "SonelMapper.h"
 #include "Model.h"
 #include "MainWindow.h"
+#include "SoundSource.h"
 
 // our helper library for window handling
 #include <GL/gl.h>
@@ -25,6 +26,10 @@ struct Scene {
 	Model* model;
 	Camera camera;
 	QuadLight light;
+	SoundSource soundSource;
+	float echogramDuration;
+	float soundSpeed;
+	float earSize;
 };
 
 Scene loadSponza();
@@ -42,7 +47,11 @@ extern "C" int main(int ac, char** av) {
 			scene.model, 
 			scene.camera, 
 			scene.light, 
-			worldScale
+			worldScale,
+			scene.soundSource,
+			scene.echogramDuration,
+			scene.soundSpeed,
+			scene.earSize
 		);
 
 		window->run();
@@ -76,9 +85,20 @@ Scene loadSponza() {
 		/* power */  vec3f(3000000.f)
 	};
 
+	SoundSource source = {
+		model->bounds.center(), // Location
+		normalize(vec3f(1.0f, 0.0f, -1.0f)),
+		70.0f, // Decibels
+		4000, // Hertz
+	};
+
 	return {
 		model,
 		camera,
-		light
+		light,
+		source,
+		10.0f, // Seconds
+		343.0f, // m/s
+		0.3f // meter
 	};
 }

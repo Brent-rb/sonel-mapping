@@ -60,7 +60,6 @@ else()
   find_package(glfw3 REQUIRED)
 endif()
 include_directories(common)
-add_subdirectory(common/glfWindow EXCLUDE_FROM_ALL)
 
 
 # ------------------------------------------------------------------

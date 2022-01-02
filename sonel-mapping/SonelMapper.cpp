@@ -52,13 +52,29 @@ struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord {
 
 /*! constructor - performs all setup, including initializing
 	optix, creates module, pipeline, programs, SBT, etc. */
-SonelMapper::SonelMapper(const Model* model, const QuadLight& light) : model(model) {
+SonelMapper::SonelMapper(
+	const Model* model, 
+	const QuadLight& light, 
+	SoundSource soundSource, 
+	float echogramDuration, 
+	float soundSpeed, 
+	float earSize
+): model(model) {
 	initOptix();
 
 	launchParams.light.origin = light.origin;
 	launchParams.light.du = light.du;
 	launchParams.light.dv = light.dv;
 	launchParams.light.power = light.power;
+	launchParams.sonelMap.soundSource = soundSource;
+	launchParams.sonelMap.echogramDuration = echogramDuration;
+	launchParams.sonelMap.soundSpeed = soundSpeed;
+	launchParams.sonelMap.earSize = earSize;
+	launchParams.sonelMap.sonelMaxDepth = 8;
+	launchParams.sonelMap.sonelAmount = 100000;
+	launchParams.sonelMap.sonelBufferSize = launchParams.sonelMap.sonelMaxDepth * launchParams.sonelMap.sonelAmount;
+	initSonelBuffer();
+	
 
 	std::cout << "#osc: creating optix context ..." << std::endl;
 	createContext();
@@ -626,6 +642,11 @@ void SonelMapper::resize(const vec2i& newSize) {
 
 	// and re-set the camera, since aspect may have changed
 	setCamera(lastSetCamera);
+}
+
+void SonelMapper::initSonelBuffer() {
+	sonelMapBuffer.resize(launchParams.sonelMap.sonelBufferSize * sizeof(Sonel));
+	launchParams.sonelMap.sonelBuffer = (Sonel*)sonelMapBuffer.d_pointer();
 }
 
 /*! download the rendered color buffer */

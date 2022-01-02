@@ -5,14 +5,18 @@ MainWindow::MainWindow(
 	const Model* model,
 	const Camera& camera,
 	const QuadLight& light,
-	const float worldScale
-): GlfCameraWindow(title, camera.from, camera.at, camera.up, worldScale), mainWindow(model, light) {
-	mainWindow.setCamera(camera);
+	const float worldScale,
+	SoundSource soundSource, 
+	float echogramDuration, 
+	float soundSpeed, 
+	float earSize
+): GlfCameraWindow(title, camera.from, camera.at, camera.up, worldScale), sonelMapper(model, light, soundSource, echogramDuration, soundSpeed, earSize) {
+	sonelMapper.setCamera(camera);
 }
 
 void MainWindow::render() {
 	if (cameraFrame.modified) {
-		mainWindow.setCamera(
+		sonelMapper.setCamera(
 			Camera{
 				cameraFrame.get_from(),
 				cameraFrame.get_at(),
@@ -20,12 +24,12 @@ void MainWindow::render() {
 			}
 		);
 		cameraFrame.modified = false;
-		mainWindow.render();
+		sonelMapper.render();
 	}
 }
 
 void MainWindow::draw() {
-	mainWindow.downloadPixels(pixels.data());
+	sonelMapper.downloadPixels(pixels.data());
 	if (fbTexture == 0)
 		glGenTextures(1, &fbTexture);
 
@@ -73,6 +77,6 @@ void MainWindow::draw() {
 
 void MainWindow::resize(const vec2i& newSize) {
 	fbSize = newSize;
-	mainWindow.resize(newSize);
+	sonelMapper.resize(newSize);
 	pixels.resize((uint64_t)newSize.x * newSize.y);
 }

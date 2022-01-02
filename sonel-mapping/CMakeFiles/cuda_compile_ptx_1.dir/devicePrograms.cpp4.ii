@@ -610933,6 +610933,31 @@ void swap(basic_stringstream<_Elem, _Traits, _Alloc>& _Left, basic_stringstream<
 
 
 #line 21 "C:\\Users\\brent\\Git\\sonel-mapping\\sonel-mapping\\LaunchParams.h"
+#line 1 "C:\\Users\\brent\\Git\\sonel-mapping\\sonel-mapping\\SoundSource.h"
+#pragma once
+
+
+struct SoundSource {
+	gdt::vec3f position;
+	gdt::vec3f direction;
+	float decibels;
+	uint32_t frequency;
+};
+
+#line 22 "C:\\Users\\brent\\Git\\sonel-mapping\\sonel-mapping\\LaunchParams.h"
+#line 1 "C:\\Users\\brent\\Git\\sonel-mapping\\sonel-mapping\\Sonel.h"
+#pragma once
+
+
+struct Sonel {
+	gdt::vec3f position;
+	gdt::vec3f incidence;
+	float energy;
+	float distance;
+	uint32_t frequency;
+};
+
+#line 23 "C:\\Users\\brent\\Git\\sonel-mapping\\sonel-mapping\\LaunchParams.h"
 
 
 enum { RADIANCE_RAY_TYPE = 0, SHADOW_RAY_TYPE, RAY_TYPE_COUNT };
@@ -610963,8 +610988,25 @@ struct LaunchParams {
 	} camera;
 
 	struct {
-		gdt::vec3f origin, du, dv, power;
+		gdt::vec3f origin;
+		gdt::vec3f du;
+		gdt::vec3f dv;
+		gdt::vec3f power;
+
 	} light;
+
+	struct {
+		SoundSource soundSource;
+		float echogramDuration;
+		float soundSpeed;
+		float earSize;
+
+		Sonel* sonelBuffer;
+		uint32_t sonelBufferSize;
+		uint32_t sonelAmount;
+		uint32_t sonelMaxDepth;
+	} sonelMap;
+
 
 	OptixTraversableHandle traversable;
 };
@@ -611077,27 +611119,25 @@ extern "C" __declspec(__constant__) LaunchParams optixLaunchParams;
 
 
 
-struct PRD {
+struct PerRayData {
 	Random random;
 	vec3f  pixelColor;
 };
 
-static __forceinline __declspec(__device__)
-	void* unpackPointer(uint32_t i0, uint32_t i1) {
+static __forceinline __declspec(__device__) void* unpackPointer(uint32_t i0, uint32_t i1) {
 	const uint64_t uptr = static_cast<uint64_t>(i0) << 32 | i1;
 	void* ptr = reinterpret_cast<void*>(uptr);
 	return ptr;
 }
 
-static __forceinline __declspec(__device__)
-	void  packPointer(void* ptr, uint32_t& i0, uint32_t& i1) {
+static __forceinline __declspec(__device__) void  packPointer(void* ptr, uint32_t& i0, uint32_t& i1) {
 	const uint64_t uptr = reinterpret_cast<uint64_t>(ptr);
 	i0 = uptr >> 32;
 	i1 = uptr & 0x00000000ffffffff;
 }
 
 template<typename T>
-static __forceinline __declspec(__device__) T* getPRD() {
+static __forceinline __declspec(__device__) T* getPerRayData() {
 	const uint32_t u0 = optixGetPayload_0();
 	const uint32_t u1 = optixGetPayload_1();
 	return reinterpret_cast<T*>(unpackPointer(u0, u1));
@@ -611120,7 +611160,7 @@ extern "C" __declspec(__global__) void __closesthit__shadow() {
 extern "C" __declspec(__global__) void __closesthit__radiance() {
 	const TriangleMeshSBTData& sbtData
 		= *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
-	PRD& prd = *getPRD<PRD>();
+	PerRayData& prd = *getPerRayData<PerRayData>();
 
 	
 	
@@ -611243,14 +611283,14 @@ extern "C" __declspec(__global__) void __anyhit__shadow() {
 
 
 extern "C" __declspec(__global__) void __miss__radiance() {
-	PRD& prd = *getPRD<PRD>();
+	PerRayData& prd = *getPerRayData<PerRayData>();
 	
 	prd.pixelColor = vec3f(1.f);
 }
 
 extern "C" __declspec(__global__) void __miss__shadow() {
 	
-	vec3f& prd = *(vec3f*)getPRD<vec3f>();
+	vec3f& prd = *(vec3f*)getPerRayData<vec3f>();
 	prd = vec3f(1.f);
 }
 
@@ -611264,7 +611304,7 @@ extern "C" __declspec(__global__) void __raygen__renderFrame() {
 	const int accumID = optixLaunchParams.frame.accumID;
 	const auto& camera = optixLaunchParams.camera;
 
-	PRD prd;
+	PerRayData prd;
 	prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
 		iy + accumID * optixLaunchParams.frame.size.y);
 	prd.pixelColor = vec3f(0.f);

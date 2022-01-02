@@ -25,21 +25,22 @@ add_executable(sonel-mapping
   optix7.h
   CUDABuffer.h
   LaunchParams.h
-  SampleRenderer.h
-  SampleRenderer.cpp
+  SonelMapper.h
+  SonelMapper.cpp
   Model.h
   Model.cpp
   main.cpp
+  
   )
 
-target_link_libraries(sonel-mapping
+target_link_libraries(
+sonel-mapping
   gdt
   # optix dependencies, for rendering
   ${optix_LIBRARY}
   ${CUDA_LIBRARIES}
   ${CUDA_CUDA_LIBRARY}
   # glfw and opengl, for display
-  glfWindow
   glfw
   ${OPENGL_gl_LIBRARY}
   )
