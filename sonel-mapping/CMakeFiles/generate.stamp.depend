@@ -1,8 +1,0 @@
-# CMake generation dependency list for this directory.
-C:/Program Files/CMake/share/cmake-3.22/Modules/FindCUDA/run_nvcc.cmake
-C:/Program Files/CMake/share/cmake-3.22/Modules/FindOpenGL.cmake
-C:/Program Files/CMake/share/cmake-3.22/Modules/FindPackageHandleStandardArgs.cmake
-C:/Program Files/CMake/share/cmake-3.22/Modules/FindPackageMessage.cmake
-C:/Users/brent/Git/sonel-mapping/sonel-mapping/CMakeFiles/cuda_compile_ptx_1.dir/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.cmake.pre-gen
-C:/Users/brent/Git/sonel-mapping/sonel-mapping/CMakeFiles/cuda_compile_ptx_1.dir/cuda_compile_ptx_1_generated_devicePrograms.cu.ptx.depend
-C:/Users/brent/Git/sonel-mapping/sonel-mapping/CMakeLists.txt
