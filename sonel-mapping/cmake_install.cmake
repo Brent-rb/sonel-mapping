@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/brent/Git/sonel-mapping/sonel-mapping
+# Install script for directory: C:/Users/brent/Documents/Repositories/sonel-mapping/sonel-mapping
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

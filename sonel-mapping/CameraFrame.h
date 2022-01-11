@@ -39,6 +39,8 @@ struct CameraFrame {
 	inline gdt::vec3f get_from() const { return position; }
 	inline gdt::vec3f get_at() const { return getPoi(); }
 	inline gdt::vec3f get_up() const { return upVector; }
+	inline gdt::vec3f get_forward() { return gdt::normalize(getPoi() - position); }
+	inline gdt::vec3f get_right() { return cross(get_forward(), get_up()); }
 
 	gdt::linear3f frame{ gdt::one };
 	gdt::vec3f position{ 0,-1,0 };

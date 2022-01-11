@@ -37,6 +37,8 @@ class SonelMapper {
 
 		/*! download the rendered color buffer */
 		void downloadPixels(uint32_t h_pixels[]);
+		void downloadSonelMap(Sonel sonels[]);
+		void uploadSonelMapSnapshot(int index);
 
 		/*! set camera to render with */
 		void setCamera(const Camera& camera);
@@ -56,22 +58,28 @@ class SonelMapper {
 		/*! creates the module that contains all the programs we are going
 		  to use. in this simple example, we use a single module from a
 		  single .cu file, using a single embedded ptx string */
-		void createModule();
+		void createRenderModule();
+		void createSonelModule();
 
 		/*! does all setup for the raygen program(s) we are going to use */
-		void createRaygenPrograms();
+		void createRenderRaygenPrograms();
+		void createSonelRaygenPrograms();
 
 		/*! does all setup for the miss program(s) we are going to use */
-		void createMissPrograms();
+		void createRenderMissPrograms();
+		void createSonelMissPrograms();
 
 		/*! does all setup for the hitgroup program(s) we are going to use */
-		void createHitgroupPrograms();
+		void createRenderHitgroupPrograms();
+		void createSonelHitgroupPrograms();
 
 		/*! assembles the full pipeline of all programs */
-		void createPipeline();
+		void createRenderPipeline();
+		void createSonelPipeline();
 
 		/*! constructs the shader binding table */
-		void buildSBT();
+		void buildRenderSbt();
+		void buildSonelSbt();
 
 		/*! build an acceleration structure for the given triangle mesh */
 		OptixTraversableHandle buildAccel();
@@ -80,9 +88,12 @@ class SonelMapper {
 		void createTextures();
 
 	private:
-		void buildRaygenRecords();
-		void buildMissRecords();
-		void buildHitgroupRecords();
+		void buildRenderRaygenRecords();
+		void buildSonelRaygenRecords();
+		void buildRenderMissRecords();
+		void buildSonelMissRecords();
+		void buildRenderHitgroupRecords();
+		void buildSonelHitgroupRecords();
 		void initSonelBuffer();
 
 	protected:
@@ -97,25 +108,46 @@ class SonelMapper {
 		OptixDeviceContext optixContext;
 
 		/*! @{ the pipeline we're building */
-		OptixPipeline pipeline;
-		OptixPipelineCompileOptions pipelineCompileOptions = {};
-		OptixPipelineLinkOptions pipelineLinkOptions = {};
+		OptixPipeline renderPipeline;
+		OptixPipelineCompileOptions renderPipelineCompileOptions = {};
+		OptixPipelineLinkOptions renderPipelineLinkOptions = {};
 		/*! @} */
 
 		/*! @{ the module that contains out device programs */
-		OptixModule module;
-		OptixModuleCompileOptions moduleCompileOptions = {};
+		OptixModule renderModule;
+		OptixModuleCompileOptions renderModuleCompileOptions = {};
 		/* @} */
 
 		/*! vector of all our program(group)s, and the SBT built around
 			them */
-		std::vector<OptixProgramGroup> raygenPGs;
-		CUDABuffer raygenRecordsBuffer;
-		std::vector<OptixProgramGroup> missPGs;
-		CUDABuffer missRecordsBuffer;
-		std::vector<OptixProgramGroup> hitgroupPGs;
-		CUDABuffer hitgroupRecordsBuffer;
-		OptixShaderBindingTable sbt = {};
+		std::vector<OptixProgramGroup> renderRaygenPgs;
+		CUDABuffer renderRaygenRecordsBuffer;
+		std::vector<OptixProgramGroup> renderMissPgs;
+		CUDABuffer renderMissRecordsBuffer;
+		std::vector<OptixProgramGroup> renderHitgroupPgs;
+		CUDABuffer renderHitgroupRecordsBuffer;
+		OptixShaderBindingTable renderSbt = {};
+
+		/*! @{ the pipeline we're building */
+		OptixPipeline sonelPipeline;
+		OptixPipelineCompileOptions sonelPipelineCompileOptions = {};
+		OptixPipelineLinkOptions sonelPipelineLinkOptions = {};
+		/*! @} */
+
+		/*! @{ the module that contains out device programs */
+		OptixModule sonelModule;
+		OptixModuleCompileOptions sonelModuleCompileOptions = {};
+		/* @} */
+
+		/*! vector of all our program(group)s, and the SBT built around
+			them */
+		std::vector<OptixProgramGroup> sonelRaygenPgs;
+		CUDABuffer sonelRaygenRecordsBuffer;
+		std::vector<OptixProgramGroup> sonelMissPgs;
+		CUDABuffer sonelMissRecordsBuffer;
+		std::vector<OptixProgramGroup> sonelHitgroupPgs;
+		CUDABuffer sonelHitgroupRecordsBuffer;
+		OptixShaderBindingTable sonelSbt = {};
 
 		/*! @{ our launch parameters, on the host, and the buffer to store
 			them on the device */
@@ -146,4 +178,9 @@ class SonelMapper {
 		std::vector<cudaArray_t> textureArrays;
 		std::vector<cudaTextureObject_t> textureObjects;
 		/*! @} */
+
+		SonelMap* sonelMap;
+		int sonelMapIndex;
+
+		bool hasCalculatedSonelMap = false;
 };

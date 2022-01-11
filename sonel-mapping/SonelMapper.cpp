@@ -21,7 +21,7 @@
 #include <optix_function_table_definition.h>
 
 #include "Model.h"
-
+#include "OctTree.h"
 
 extern "C" char embedded_ptx_code[];
 
@@ -73,6 +73,7 @@ SonelMapper::SonelMapper(
 	launchParams.sonelMap.sonelMaxDepth = 8;
 	launchParams.sonelMap.sonelAmount = 100000;
 	launchParams.sonelMap.sonelBufferSize = launchParams.sonelMap.sonelMaxDepth * launchParams.sonelMap.sonelAmount;
+	launchParams.octTree = nullptr;
 	initSonelBuffer();
 	
 
@@ -80,24 +81,30 @@ SonelMapper::SonelMapper(
 	createContext();
 
 	std::cout << "#osc: setting up module ..." << std::endl;
-	createModule();
+	createRenderModule();
+	createSonelModule();
 
 	std::cout << "#osc: creating raygen programs ..." << std::endl;
-	createRaygenPrograms();
+	createRenderRaygenPrograms();
+	createSonelRaygenPrograms();
 	std::cout << "#osc: creating miss programs ..." << std::endl;
-	createMissPrograms();
+	createRenderMissPrograms();
+	createSonelMissPrograms();
 	std::cout << "#osc: creating hitgroup programs ..." << std::endl;
-	createHitgroupPrograms();
+	createRenderHitgroupPrograms();
+	createSonelHitgroupPrograms();
 
 	launchParams.traversable = buildAccel();
 
 	std::cout << "#osc: setting up optix pipeline ..." << std::endl;
-	createPipeline();
+	createRenderPipeline();
+	createSonelPipeline();
 
 	createTextures();
 
 	std::cout << "#osc: building SBT ..." << std::endl;
-	buildSBT();
+	buildRenderSbt();
+	buildSonelSbt();
 
 	launchParamsBuffer.alloc(sizeof(launchParams));
 	std::cout << "#osc: context, module, pipeline, etc, all set up ..."
@@ -336,57 +343,134 @@ void SonelMapper::createContext() {
 /*! creates the module that contains all the programs we are going
 	to use. in this simple example, we use a single module from a
 	single .cu file, using a single embedded ptx string */
-void SonelMapper::createModule() {
-	moduleCompileOptions.maxRegisterCount = 50;
-	moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-	moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+void SonelMapper::createRenderModule() {
+	renderModuleCompileOptions.maxRegisterCount = 50;
+	renderModuleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+	renderModuleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 
-	pipelineCompileOptions = {};
-	pipelineCompileOptions.traversableGraphFlags =
+	renderPipelineCompileOptions = {};
+	renderPipelineCompileOptions.traversableGraphFlags =
 		OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-	pipelineCompileOptions.usesMotionBlur = false;
-	pipelineCompileOptions.numPayloadValues = 2;
-	pipelineCompileOptions.numAttributeValues = 2;
-	pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
-	pipelineCompileOptions.pipelineLaunchParamsVariableName = "optixLaunchParams";
+	renderPipelineCompileOptions.usesMotionBlur = false;
+	renderPipelineCompileOptions.numPayloadValues = 2;
+	renderPipelineCompileOptions.numAttributeValues = 2;
+	renderPipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+	renderPipelineCompileOptions.pipelineLaunchParamsVariableName = "launchParams";
 
-	pipelineLinkOptions.maxTraceDepth = 2;
+	renderPipelineLinkOptions.maxTraceDepth = 2;
 
 	const std::string ptxCode = embedded_ptx_code;
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
 	OPTIX_CHECK(optixModuleCreateFromPTX(
-		optixContext, &moduleCompileOptions, &pipelineCompileOptions,
-		ptxCode.c_str(), ptxCode.size(), log, &sizeof_log, &module));
+		optixContext, &renderModuleCompileOptions, &renderPipelineCompileOptions,
+		ptxCode.c_str(), ptxCode.size(), log, &sizeof_log, &renderModule));
+	if (sizeof_log > 1)
+		PRINT(log);
+}
+
+/*! creates the module that contains all the programs we are going
+	to use. in this simple example, we use a single module from a
+	single .cu file, using a single embedded ptx string */
+void SonelMapper::createSonelModule() {
+	sonelModuleCompileOptions.maxRegisterCount = 50;
+	sonelModuleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+	sonelModuleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+
+	sonelPipelineCompileOptions = {};
+	sonelPipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+	sonelPipelineCompileOptions.usesMotionBlur = false;
+	sonelPipelineCompileOptions.numPayloadValues = 2;
+	sonelPipelineCompileOptions.numAttributeValues = 2;
+	sonelPipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+	sonelPipelineCompileOptions.pipelineLaunchParamsVariableName = "launchParams";
+
+	sonelPipelineLinkOptions.maxTraceDepth = 8;
+
+	const std::string ptxCode = embedded_ptx_code;
+
+	char log[2048];
+	size_t sizeof_log = sizeof(log);
+	OPTIX_CHECK(
+		optixModuleCreateFromPTX(
+			optixContext, \
+			&sonelModuleCompileOptions, 
+			&sonelPipelineCompileOptions,
+			ptxCode.c_str(), 
+			ptxCode.size(), 
+			log, 
+			&sizeof_log, 
+			&sonelModule
+		)
+	);
+
 	if (sizeof_log > 1)
 		PRINT(log);
 }
 
 /*! does all setup for the raygen program(s) we are going to use */
-void SonelMapper::createRaygenPrograms() {
+void SonelMapper::createRenderRaygenPrograms() {
 	// we do a single ray gen program in this example:
-	raygenPGs.resize(1);
+	renderRaygenPgs.resize(1);
 
 	OptixProgramGroupOptions pgOptions = {};
 	OptixProgramGroupDesc pgDesc = {};
 	pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-	pgDesc.raygen.module = module;
+	pgDesc.raygen.module = renderModule;
 	pgDesc.raygen.entryFunctionName = "__raygen__renderFrame";
 
 	// OptixProgramGroup raypg;
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
-	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
-		&sizeof_log, &raygenPGs[0]));
+	OPTIX_CHECK(
+		optixProgramGroupCreate(
+			optixContext, 
+			&pgDesc, 
+			1, 
+			&pgOptions, 
+			log,
+			&sizeof_log, 
+			&renderRaygenPgs[0]
+		)
+	);
+	if (sizeof_log > 1)
+		PRINT(log);
+}
+
+/*! does all setup for the raygen program(s) we are going to use */
+void SonelMapper::createSonelRaygenPrograms() {
+	// we do a single ray gen program in this example:
+	sonelRaygenPgs.resize(1);
+
+	OptixProgramGroupOptions pgOptions = {};
+	OptixProgramGroupDesc pgDesc = {};
+	pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
+	pgDesc.raygen.module = sonelModule;
+	pgDesc.raygen.entryFunctionName = "__raygen__generateSonelMap";
+
+	// OptixProgramGroup raypg;
+	char log[2048];
+	size_t sizeof_log = sizeof(log);
+	OPTIX_CHECK(
+		optixProgramGroupCreate(
+			optixContext,
+			&pgDesc,
+			1,
+			&pgOptions,
+			log,
+			&sizeof_log,
+			&sonelRaygenPgs[0]
+		)
+	);
 	if (sizeof_log > 1)
 		PRINT(log);
 }
 
 /*! does all setup for the miss program(s) we are going to use */
-void SonelMapper::createMissPrograms() {
+void SonelMapper::createRenderMissPrograms() {
 	// we do a single ray gen program in this example:
-	missPGs.resize(RAY_TYPE_COUNT);
+	renderMissPgs.resize(RAY_TYPE_COUNT);
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
@@ -394,7 +478,7 @@ void SonelMapper::createMissPrograms() {
 	OptixProgramGroupOptions pgOptions = {};
 	OptixProgramGroupDesc pgDesc = {};
 	pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-	pgDesc.miss.module = module;
+	pgDesc.miss.module = renderModule;
 
 	// ------------------------------------------------------------------
 	// radiance rays
@@ -403,7 +487,7 @@ void SonelMapper::createMissPrograms() {
 
 	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
 		&sizeof_log,
-		&missPGs[RADIANCE_RAY_TYPE]));
+		&renderMissPgs[RADIANCE_RAY_TYPE]));
 	if (sizeof_log > 1)
 		PRINT(log);
 
@@ -413,15 +497,69 @@ void SonelMapper::createMissPrograms() {
 	pgDesc.miss.entryFunctionName = "__miss__shadow";
 
 	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
-		&sizeof_log, &missPGs[SHADOW_RAY_TYPE]));
+		&sizeof_log, &renderMissPgs[SHADOW_RAY_TYPE]));
+	if (sizeof_log > 1)
+		PRINT(log);
+}
+
+/*! does all setup for the miss program(s) we are going to use */
+void SonelMapper::createSonelMissPrograms() {
+	// we do a single ray gen program in this example:
+	sonelMissPgs.resize(RAY_TYPE_COUNT);
+
+	char log[2048];
+	size_t sizeof_log = sizeof(log);
+
+	OptixProgramGroupOptions pgOptions = {};
+	OptixProgramGroupDesc pgDesc = {};
+	pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+	pgDesc.miss.module = sonelModule;
+
+	// ------------------------------------------------------------------
+	// radiance rays
+	// ------------------------------------------------------------------
+	pgDesc.miss.entryFunctionName = "__miss__sonelRadiance";
+
+	OPTIX_CHECK(
+		optixProgramGroupCreate(
+			optixContext, 
+			&pgDesc, 
+			1, 
+			&pgOptions, 
+			log,
+			&sizeof_log,
+			&sonelMissPgs[RADIANCE_RAY_TYPE]
+		)
+	);
+
+	if (sizeof_log > 1)
+		PRINT(log);
+
+	// ------------------------------------------------------------------
+	// shadow rays
+	// ------------------------------------------------------------------
+	pgDesc.miss.entryFunctionName = "__miss__sonelShadow";
+
+	OPTIX_CHECK(
+		optixProgramGroupCreate(
+			optixContext, 
+			&pgDesc, 
+			1, 
+			&pgOptions, 
+			log,
+			&sizeof_log, 
+			&sonelMissPgs[SHADOW_RAY_TYPE]
+		)
+	);
+
 	if (sizeof_log > 1)
 		PRINT(log);
 }
 
 /*! does all setup for the hitgroup program(s) we are going to use */
-void SonelMapper::createHitgroupPrograms() {
+void SonelMapper::createRenderHitgroupPrograms() {
 	// for this simple example, we set up a single hit group
-	hitgroupPGs.resize(RAY_TYPE_COUNT);
+	renderHitgroupPgs.resize(RAY_TYPE_COUNT);
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
@@ -429,8 +567,8 @@ void SonelMapper::createHitgroupPrograms() {
 	OptixProgramGroupOptions pgOptions = {};
 	OptixProgramGroupDesc pgDesc = {};
 	pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-	pgDesc.hitgroup.moduleCH = module;
-	pgDesc.hitgroup.moduleAH = module;
+	pgDesc.hitgroup.moduleCH = renderModule;
+	pgDesc.hitgroup.moduleAH = renderModule;
 
 	// -------------------------------------------------------
 	// radiance rays
@@ -440,7 +578,7 @@ void SonelMapper::createHitgroupPrograms() {
 
 	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
 		&sizeof_log,
-		&hitgroupPGs[RADIANCE_RAY_TYPE]));
+		&renderHitgroupPgs[RADIANCE_RAY_TYPE]));
 	if (sizeof_log > 1)
 		PRINT(log);
 
@@ -454,21 +592,62 @@ void SonelMapper::createHitgroupPrograms() {
 
 	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
 		&sizeof_log,
-		&hitgroupPGs[SHADOW_RAY_TYPE]));
+		&renderHitgroupPgs[SHADOW_RAY_TYPE]));
+	if (sizeof_log > 1)
+		PRINT(log);
+}
+
+/*! does all setup for the hitgroup program(s) we are going to use */
+void SonelMapper::createSonelHitgroupPrograms() {
+	// for this simple example, we set up a single hit group
+	sonelHitgroupPgs.resize(RAY_TYPE_COUNT);
+
+	char log[2048];
+	size_t sizeof_log = sizeof(log);
+
+	OptixProgramGroupOptions pgOptions = {};
+	OptixProgramGroupDesc pgDesc = {};
+	pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+	pgDesc.hitgroup.moduleCH = sonelModule;
+	pgDesc.hitgroup.moduleAH = sonelModule;
+
+	// -------------------------------------------------------
+	// radiance rays
+	// -------------------------------------------------------
+	pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__sonelRadiance";
+	pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__sonelRadiance";
+
+	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
+		&sizeof_log,
+		&sonelHitgroupPgs[RADIANCE_RAY_TYPE]));
+	if (sizeof_log > 1)
+		PRINT(log);
+
+	// -------------------------------------------------------
+	// shadow rays: technically we don't need this hit group,
+	// since we just use the miss shader to check if we were not
+	// in shadow
+	// -------------------------------------------------------
+	pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__sonelShadow";
+	pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__sonelShadow";
+
+	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
+		&sizeof_log,
+		&sonelHitgroupPgs[SHADOW_RAY_TYPE]));
 	if (sizeof_log > 1)
 		PRINT(log);
 }
 
 /*! assembles the full pipeline of all programs */
-void SonelMapper::createPipeline() {
+void SonelMapper::createRenderPipeline() {
 	std::vector<OptixProgramGroup> programGroups;
-	for (auto pg : raygenPGs) {
+	for (auto pg : renderRaygenPgs) {
 		programGroups.push_back(pg);
 	}
-	for (auto pg : hitgroupPGs) {
+	for (auto pg : renderHitgroupPgs) {
 		programGroups.push_back(pg);
 	}
-	for (auto pg : missPGs) {
+	for (auto pg : renderMissPgs) {
 		programGroups.push_back(pg);
 	}
 
@@ -476,17 +655,27 @@ void SonelMapper::createPipeline() {
 	size_t sizeof_log = sizeof(log);
 	PING;
 	PRINT(programGroups.size());
-	OPTIX_CHECK(optixPipelineCreate(optixContext, &pipelineCompileOptions,
-		&pipelineLinkOptions, programGroups.data(),
-		(int)programGroups.size(), log, &sizeof_log,
-		&pipeline));
+
+	OPTIX_CHECK(
+		optixPipelineCreate(
+			optixContext, 
+			&renderPipelineCompileOptions,
+			&renderPipelineLinkOptions, 
+			programGroups.data(),
+			(int)programGroups.size(), 
+			log, 
+			&sizeof_log,
+			&renderPipeline
+		)
+	);
+
 	if (sizeof_log > 1)
 		PRINT(log);
 
 	OPTIX_CHECK(
 		optixPipelineSetStackSize(
 			/* [in] The pipeline to configure the stack size for */
-			pipeline,
+			renderPipeline,
 			/* [in] The direct stack size requirement for
 				direct callables invoked from IS or AH. */
 			2 * 1024,
@@ -498,42 +687,132 @@ void SonelMapper::createPipeline() {
 			2 * 1024,
 			/* [in] The maximum depth of a traversable graph
 				passed to trace. */
-			1));
+			1
+		)
+	);
+
 	if (sizeof_log > 1)
 		PRINT(log);
 }
 
-void SonelMapper::buildRaygenRecords() {
+/*! assembles the full pipeline of all programs */
+void SonelMapper::createSonelPipeline() {
+	std::vector<OptixProgramGroup> programGroups;
+	for (auto pg : sonelRaygenPgs) {
+		programGroups.push_back(pg);
+	}
+	for (auto pg : sonelHitgroupPgs) {
+		programGroups.push_back(pg);
+	}
+	for (auto pg : sonelMissPgs) {
+		programGroups.push_back(pg);
+	}
+
+	char log[2048];
+	size_t sizeof_log = sizeof(log);
+	PING;
+	PRINT(programGroups.size());
+
+	OPTIX_CHECK(
+		optixPipelineCreate(
+			optixContext,
+			&sonelPipelineCompileOptions,
+			&sonelPipelineLinkOptions,
+			programGroups.data(),
+			(int)programGroups.size(),
+			log,
+			&sizeof_log,
+			&sonelPipeline
+		)
+	);
+
+	if (sizeof_log > 1)
+		PRINT(log);
+
+	OPTIX_CHECK(
+		optixPipelineSetStackSize(
+			/* [in] The pipeline to configure the stack size for */
+			sonelPipeline,
+			/* [in] The direct stack size requirement for
+				direct callables invoked from IS or AH. */
+			2 * 1024,
+			/* [in] The direct stack size requirement for
+				direct
+				callables invoked from RG, MS, or CH.  */
+			2 * 1024,
+			/* [in] The continuation stack requirement. */
+			2 * 1024,
+			/* [in] The maximum depth of a traversable graph
+				passed to trace. */
+			1
+		)
+	);
+
+	if (sizeof_log > 1)
+		PRINT(log);
+}
+
+void SonelMapper::buildRenderRaygenRecords() {
 	std::vector<RaygenRecord> raygenRecords;
 
-	for (int i = 0; i < raygenPGs.size(); i++) {
+	for (int i = 0; i < renderRaygenPgs.size(); i++) {
 		RaygenRecord rec;
-		OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[i], &rec));
+		OPTIX_CHECK(optixSbtRecordPackHeader(renderRaygenPgs[i], &rec));
 		rec.data = nullptr; /* for now ... */
 		raygenRecords.push_back(rec);
 	}
 
-	raygenRecordsBuffer.alloc_and_upload(raygenRecords);
-	sbt.raygenRecord = raygenRecordsBuffer.d_pointer();
+	renderRaygenRecordsBuffer.alloc_and_upload(raygenRecords);
+	renderSbt.raygenRecord = renderRaygenRecordsBuffer.d_pointer();
 }
 
-void SonelMapper::buildMissRecords() {
+void SonelMapper::buildSonelRaygenRecords() {
+	std::vector<RaygenRecord> raygenRecords;
+
+	for (int i = 0; i < sonelRaygenPgs.size(); i++) {
+		RaygenRecord rec;
+		OPTIX_CHECK(optixSbtRecordPackHeader(sonelRaygenPgs[i], &rec));
+		rec.data = nullptr; /* for now ... */
+		raygenRecords.push_back(rec);
+	}
+
+	sonelRaygenRecordsBuffer.alloc_and_upload(raygenRecords);
+	sonelSbt.raygenRecord = sonelRaygenRecordsBuffer.d_pointer();
+}
+
+void SonelMapper::buildRenderMissRecords() {
 	std::vector<MissRecord> missRecords;
-	for (int i = 0; i < missPGs.size(); i++) {
+	for (int i = 0; i < renderMissPgs.size(); i++) {
 		MissRecord rec;
-		OPTIX_CHECK(optixSbtRecordPackHeader(missPGs[i], &rec));
+		OPTIX_CHECK(optixSbtRecordPackHeader(renderMissPgs[i], &rec));
 		rec.data = nullptr; /* for now ... */
 		missRecords.push_back(rec);
 	}
 
-	missRecordsBuffer.alloc_and_upload(missRecords);
-	sbt.missRecordBase = missRecordsBuffer.d_pointer();
+	renderMissRecordsBuffer.alloc_and_upload(missRecords);
+	renderSbt.missRecordBase = renderMissRecordsBuffer.d_pointer();
 
-	sbt.missRecordStrideInBytes = sizeof(MissRecord);
-	sbt.missRecordCount = (int)missRecords.size();
+	renderSbt.missRecordStrideInBytes = sizeof(MissRecord);
+	renderSbt.missRecordCount = (int)missRecords.size();
 }
 
-void SonelMapper::buildHitgroupRecords() {
+void SonelMapper::buildSonelMissRecords() {
+	std::vector<MissRecord> missRecords;
+	for (int i = 0; i < sonelMissPgs.size(); i++) {
+		MissRecord rec;
+		OPTIX_CHECK(optixSbtRecordPackHeader(sonelMissPgs[i], &rec));
+		rec.data = nullptr; /* for now ... */
+		missRecords.push_back(rec);
+	}
+
+	sonelMissRecordsBuffer.alloc_and_upload(missRecords);
+	sonelSbt.missRecordBase = sonelMissRecordsBuffer.d_pointer();
+
+	sonelSbt.missRecordStrideInBytes = sizeof(MissRecord);
+	sonelSbt.missRecordCount = (int)missRecords.size();
+}
+
+void SonelMapper::buildRenderHitgroupRecords() {
 	int numObjects = (int)model->meshes.size();
 
 	std::vector<HitgroupRecord> hitgroupRecords;
@@ -543,7 +822,7 @@ void SonelMapper::buildHitgroupRecords() {
 		for (int rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
 			HitgroupRecord rec;
 
-			OPTIX_CHECK(optixSbtRecordPackHeader(hitgroupPGs[rayId], &rec));
+			OPTIX_CHECK(optixSbtRecordPackHeader(renderHitgroupPgs[rayId], &rec));
 
 			// Load color data
 			rec.data.color = mesh->diffuse;
@@ -565,17 +844,61 @@ void SonelMapper::buildHitgroupRecords() {
 		}
 	}
 
-	hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
-	sbt.hitgroupRecordBase = hitgroupRecordsBuffer.d_pointer();
-	sbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
-	sbt.hitgroupRecordCount = (int)hitgroupRecords.size();
+	renderHitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
+	renderSbt.hitgroupRecordBase = renderHitgroupRecordsBuffer.d_pointer();
+	renderSbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
+	renderSbt.hitgroupRecordCount = (int)hitgroupRecords.size();
+}
+
+void SonelMapper::buildSonelHitgroupRecords() {
+	int numObjects = (int)model->meshes.size();
+
+	std::vector<HitgroupRecord> hitgroupRecords;
+	for (int meshId = 0; meshId < numObjects; meshId++) {
+		TriangleMesh* mesh = model->meshes[meshId];
+
+		for (int rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
+			HitgroupRecord rec;
+
+			OPTIX_CHECK(optixSbtRecordPackHeader(sonelHitgroupPgs[rayId], &rec));
+
+			// Load color data
+			rec.data.color = mesh->diffuse;
+			if (mesh->diffuseTextureId >= 0) {
+				rec.data.hasTexture = true;
+				rec.data.texture = textureObjects[mesh->diffuseTextureId];
+			}
+			else {
+				rec.data.hasTexture = false;
+			}
+
+			// Load vector data
+			rec.data.index = (vec3i*)indexBuffer[meshId].d_pointer();
+			rec.data.vertex = (vec3f*)vertexBuffer[meshId].d_pointer();
+			rec.data.normal = (vec3f*)normalBuffer[meshId].d_pointer();
+			rec.data.texcoord = (vec2f*)texcoordBuffer[meshId].d_pointer();
+
+			hitgroupRecords.push_back(rec);
+		}
+	}
+
+	sonelHitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
+	sonelSbt.hitgroupRecordBase = sonelHitgroupRecordsBuffer.d_pointer();
+	sonelSbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
+	sonelSbt.hitgroupRecordCount = (int)hitgroupRecords.size();
 }
 
 /*! constructs the shader binding table */
-void SonelMapper::buildSBT() {
-	buildRaygenRecords();
-	buildMissRecords();
-	buildHitgroupRecords();
+void SonelMapper::buildRenderSbt() {
+	buildRenderRaygenRecords();
+	buildRenderMissRecords();
+	buildRenderHitgroupRecords();
+}
+
+void SonelMapper::buildSonelSbt() {
+	buildSonelRaygenRecords();
+	buildSonelMissRecords();
+	buildSonelHitgroupRecords();
 }
 
 /*! render one frame */
@@ -587,23 +910,63 @@ void SonelMapper::render() {
 	}
 
 	launchParamsBuffer.upload(&launchParams, 1);
-	launchParams.frame.accumID++;
 
-	OPTIX_CHECK(optixLaunch(
-		/*! pipeline we're launching launch: */
-		pipeline, 
-		stream,
+	if (!hasCalculatedSonelMap) {
+		OPTIX_CHECK(
+			optixLaunch(
+				/*! pipeline we're launching launch: */
+				sonelPipeline,
+				stream,
 
-		/*! parameters and SBT */
-		launchParamsBuffer.d_pointer(),
-		launchParamsBuffer.sizeInBytes, 
-		&sbt,
+				/*! parameters and SBT */
+				launchParamsBuffer.d_pointer(),
+				launchParamsBuffer.sizeInBytes,
+				&sonelSbt,
 
-		/*! dimensions of the launch: */
-		launchParams.frame.size.x, 
-		launchParams.frame.size.y,
-		1
-	));
+				/*! dimensions of the launch: */
+				launchParams.sonelMap.sonelAmount,
+				1,
+				1
+			)
+		);
+		
+		CUDA_SYNC_CHECK();
+		hasCalculatedSonelMap = true;
+
+		std::vector<Sonel> sonelMap;
+		sonelMap.resize(launchParams.sonelMap.sonelBufferSize);
+		downloadSonelMap(sonelMap.data());
+
+		this->sonelMap = new SonelMap(sonelMap.data(), launchParams.sonelMap.sonelAmount, launchParams.sonelMap.sonelMaxDepth, launchParams.sonelMap.echogramDuration, launchParams.sonelMap.soundSpeed);
+		sonelMapIndex = 0;
+	}
+
+	uploadSonelMapSnapshot(sonelMapIndex);
+	sonelMapIndex++;
+
+	if (sonelMapIndex == sonelMap->getTimestepAmount() - 1) {
+		sonelMapIndex = 0;
+	}
+
+	launchParamsBuffer.upload(&launchParams, 1);
+
+	OPTIX_CHECK(
+		optixLaunch(
+			/*! pipeline we're launching launch: */
+			renderPipeline, 
+			stream,
+
+			/*! parameters and SBT */
+			launchParamsBuffer.d_pointer(),
+			launchParamsBuffer.sizeInBytes, 
+			&renderSbt,
+
+			/*! dimensions of the launch: */
+			launchParams.frame.size.x,
+			launchParams.frame.size.y,
+			1
+		)
+	);
 
 	// sync - make sure the frame is rendered before we download and
 	// display (obviously, for a high-performance application you
@@ -647,6 +1010,42 @@ void SonelMapper::resize(const vec2i& newSize) {
 void SonelMapper::initSonelBuffer() {
 	sonelMapBuffer.resize(launchParams.sonelMap.sonelBufferSize * sizeof(Sonel));
 	launchParams.sonelMap.sonelBuffer = (Sonel*)sonelMapBuffer.d_pointer();
+}
+
+void SonelMapper::downloadSonelMap(Sonel sonels[]) {
+	sonelMapBuffer.download(sonels, launchParams.sonelMap.sonelBufferSize);
+}
+
+void SonelMapper::uploadSonelMapSnapshot(int index) {
+	printf("Uploading index %d\n", index);
+	std::vector<Sonel> sonels;
+	
+	sonelMap->getTimestep(index, sonels);
+	if (sonels.size() == 0) {
+		sonels.push_back({
+			gdt::vec3f(),
+			gdt::vec3f(),
+			0,
+			0,
+			0
+			});
+	}
+
+	BoundingBox box(model->bounds.lower, model->bounds.upper);
+	uint32_t maxItems = 20;
+	OctTree<Sonel> octTree(box, maxItems);
+
+	for (int i = 0; i < sonels.size(); i++) {
+		octTree.insert(&(sonels[i]), sonels[i].position);
+	}
+
+	// OctTree<Sonel>* deviceOctTree = octTree.upload();
+
+	sonelMapBuffer.resize(sonels.size() * sizeof(Sonel));
+	sonelMapBuffer.upload(sonels.data(), sonels.size());
+	launchParams.sonelMap.sonelBuffer = (Sonel*)sonelMapBuffer.d_pointer();
+	launchParams.sonelMap.sonelBufferSize = sonels.size();
+	// launchParams.octTree = deviceOctTree;
 }
 
 /*! download the rendered color buffer */

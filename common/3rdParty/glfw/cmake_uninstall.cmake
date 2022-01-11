@@ -1,9 +1,9 @@
 
-if (NOT EXISTS "C:/Users/brent/Git/sonel-mapping/common/3rdParty/glfw/install_manifest.txt")
-  message(FATAL_ERROR "Cannot find install manifest: \"C:/Users/brent/Git/sonel-mapping/common/3rdParty/glfw/install_manifest.txt\"")
+if (NOT EXISTS "C:/Users/brent/Documents/Repositories/sonel-mapping/common/3rdParty/glfw/install_manifest.txt")
+  message(FATAL_ERROR "Cannot find install manifest: \"C:/Users/brent/Documents/Repositories/sonel-mapping/common/3rdParty/glfw/install_manifest.txt\"")
 endif()
 
-file(READ "C:/Users/brent/Git/sonel-mapping/common/3rdParty/glfw/install_manifest.txt" files)
+file(READ "C:/Users/brent/Documents/Repositories/sonel-mapping/common/3rdParty/glfw/install_manifest.txt" files)
 string(REGEX REPLACE "\n" ";" files "${files}")
 
 foreach (file ${files})

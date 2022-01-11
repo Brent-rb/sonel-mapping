@@ -23,12 +23,37 @@ cuda_compile_and_embed(embedded_ptx_code devicePrograms.cu)
 add_executable(sonel-mapping
   ${embedded_ptx_code}
   optix7.h
+
   CUDABuffer.h
   LaunchParams.h
   SonelMapper.h
   SonelMapper.cpp
   Model.h
   Model.cpp
+  Sonel.h
+  Sonel.cpp
+  SoundSource.h
+  SoundSource.cpp
+  
+  Camera.h
+  CameraFrame.h
+  CameraFrame.cpp
+  CameraFrameManip.h
+  CameraFrameManip.cpp
+  FlyModeManip.h
+  FlyModeManip.cpp
+  InspectModeManip.h
+  InspectModeManip.cpp
+  
+  GlfCameraWindow.h
+  GlfCameraWindow.cpp
+  GlfWindow.h
+  GlfWindow.cpp
+  MainWindow.h
+  MainWindow.cpp
+
+  OctTree.h
+
   main.cpp
   
   )

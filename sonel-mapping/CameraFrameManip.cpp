@@ -26,17 +26,17 @@ void CameraFrameManip::key(int key, int mods) {
 			std::cout << "- upVec:" << fc.upVector << std::endl;
 			std::cout << "- frame:" << fc.frame << std::endl;
 			break;
-		case 'x':
-		case 'X':
-			fc.setUpVector(fc.upVector == gdt::vec3f(1, 0, 0) ? gdt::vec3f(-1, 0, 0) : gdt::vec3f(1, 0, 0));
+		case 'W':
+			strafe(fc.get_forward() * fc.motionSpeed / 100.0f);
 			break;
-		case 'y':
-		case 'Y':
-			fc.setUpVector(fc.upVector == gdt::vec3f(0, 1, 0) ? gdt::vec3f(0, -1, 0) : gdt::vec3f(0, 1, 0));
+		case 'S':
+			strafe(-fc.get_forward() * fc.motionSpeed / 100.0f);
 			break;
-		case 'z':
-		case 'Z':
-			fc.setUpVector(fc.upVector == gdt::vec3f(0, 0, 1) ? gdt::vec3f(0, 0, -1) : gdt::vec3f(0, 0, 1));
+		case 'A':
+			strafe(-fc.get_right() * fc.motionSpeed / 100.0f);
+			break;
+		case 'D':
+			strafe(fc.get_right() * fc.motionSpeed / 100.0f);
 			break;
 		default:
 			break;

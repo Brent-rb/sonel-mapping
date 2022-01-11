@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/brent/Git/sonel-mapping/common/gdt
+# Install script for directory: C:/Users/brent/Documents/Repositories/sonel-mapping/common/gdt
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

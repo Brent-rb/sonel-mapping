@@ -70,9 +70,16 @@ Scene loadSponza() {
 	Model* model = loadObj("../models/sponza.obj");
 
 	Camera camera = {
-		/*from*/vec3f(-1293.07f, 154.681f, -0.7304f),
-		/* at */model->bounds.center() - vec3f(0,400,0),
+		/*from*/vec3f(0, 150, model->bounds.center().z),
+		/* at */vec3f(-900, 150, model->bounds.center().z),
 		/* up */vec3f(0.f,1.f,0.f)
+	};
+
+	SoundSource source = {
+		vec3f(-900, 150, model->bounds.center().z), // Location
+		normalize(vec3f(-1.0f, 0.0f, 0.0f)),
+		70.0f, // Decibels
+		4000, // Hertz
 	};
 
 	// some simple, hard-coded light ... obviously, only works for sponza
@@ -83,13 +90,6 @@ Scene loadSponza() {
 		/* edge 1 */ vec3f(2.f * light_size,0,0),
 		/* edge 2 */ vec3f(0,0,2.f * light_size),
 		/* power */  vec3f(3000000.f)
-	};
-
-	SoundSource source = {
-		model->bounds.center(), // Location
-		normalize(vec3f(1.0f, 0.0f, -1.0f)),
-		70.0f, // Decibels
-		4000, // Hertz
 	};
 
 	return {

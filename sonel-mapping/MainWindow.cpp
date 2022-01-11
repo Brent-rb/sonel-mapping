@@ -24,8 +24,9 @@ void MainWindow::render() {
 			}
 		);
 		cameraFrame.modified = false;
-		sonelMapper.render();
 	}
+
+	sonelMapper.render();
 }
 
 void MainWindow::draw() {

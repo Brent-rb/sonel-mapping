@@ -452,3 +452,6 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudio,visualstudiocode
+CMakeFiles/3.21.3
+CMakeFiles/3.22.1
+CMakeFiles

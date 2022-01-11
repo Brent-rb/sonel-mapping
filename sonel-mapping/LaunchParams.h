@@ -20,6 +20,7 @@
 #include "optix7.h"
 #include "SoundSource.h"
 #include "Sonel.h"
+#include "OctTree.h"
 
 // for this simple example, we have a single ray type
 enum { RADIANCE_RAY_TYPE = 0, SHADOW_RAY_TYPE, RAY_TYPE_COUNT };
@@ -69,6 +70,7 @@ struct LaunchParams {
 		uint32_t sonelMaxDepth;
 	} sonelMap;
 
+	OctTree<Sonel>* octTree;
 
 	OptixTraversableHandle traversable;
 };

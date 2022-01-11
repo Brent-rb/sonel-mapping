@@ -14,7 +14,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{DD5FFD44-88A5-3814-85A4-60D7D8F34897}</ProjectGuid>
+    <ProjectGuid>{1AAFDA2A-CE7E-3D9F-8059-0FC7CEFB51D7}</ProjectGuid>
     <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
     <Keyword>Win32Proj</Keyword>
     <Platform>x64</Platform>
@@ -75,7 +75,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\brent\Git\sonel-mapping\CMakeFiles\183f6cedafc6817a1f8eb8cd89609a69\INSTALL_force.rule">
+    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\CMakeFiles\d99b50d1279dc73819e63511b0b914af\INSTALL_force.rule">
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"> </Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
 cd .
@@ -87,7 +87,7 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\brent\Git\sonel-mapping\common\3rdParty\glfw\src\CMakeFiles\INSTALL_force</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\brent\Documents\Repositories\sonel-mapping\common\3rdParty\glfw\src\CMakeFiles\INSTALL_force</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
       <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</VerifyInputsAndOutputsExist>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'"> </Message>
@@ -101,20 +101,20 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\brent\Git\sonel-mapping\common\3rdParty\glfw\src\CMakeFiles\INSTALL_force</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\brent\Documents\Repositories\sonel-mapping\common\3rdParty\glfw\src\CMakeFiles\INSTALL_force</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
       <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</VerifyInputsAndOutputsExist>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="C:\Users\brent\Git\sonel-mapping\ZERO_CHECK.vcxproj">
-      <Project>{9ACA0D08-1374-3139-A64F-1AD4CF079BE1}</Project>
+    <ProjectReference Include="C:\Users\brent\Documents\Repositories\sonel-mapping\ZERO_CHECK.vcxproj">
+      <Project>{AEEE4951-37C8-3D8D-8DC0-1131C2E8BABF}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\brent\Git\sonel-mapping\ALL_BUILD.vcxproj">
-      <Project>{E3E54B8A-6638-31AC-AF61-D982758A52D6}</Project>
+    <ProjectReference Include="C:\Users\brent\Documents\Repositories\sonel-mapping\ALL_BUILD.vcxproj">
+      <Project>{287151D6-8EFD-36E1-ABD1-07C4EA3FA3C2}</Project>
       <Name>ALL_BUILD</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>

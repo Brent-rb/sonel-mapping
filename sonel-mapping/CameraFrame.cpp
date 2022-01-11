@@ -12,6 +12,8 @@ gdt::vec3f CameraFrame::getPoi() const {
 	return position - poiDistance * frame.vz;
 }
 
+
+
 void CameraFrame::setOrientation(
 	const gdt::vec3f& origin,
 	const gdt::vec3f& interest,

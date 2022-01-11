@@ -1,111 +1,114 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\SonelMapper.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SonelMapper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\Model.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\main.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Sonel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CameraFrame.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SoundSource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CameraFrameManip.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CameraFrame.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="FlyModeManip.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CameraFrameManip.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GlfCameraWindow.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\FlyModeManip.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GlfWindow.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\InspectModeManip.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="InspectModeManip.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\GlfCameraWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MainWindow.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\GlfWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Sonel.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\MainWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SoundSource.cpp">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\optix7.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\optix7.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\CUDABuffer.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CUDABuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\LaunchParams.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\LaunchParams.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\SonelMapper.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SonelMapper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\Model.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Camera.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Sonel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CameraFrame.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SoundSource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CameraFrameManip.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="FlyModeManip.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CameraFrame.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GlfCameraWindow.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CameraFrameManip.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GlfWindow.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\FlyModeManip.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="InspectModeManip.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\InspectModeManip.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MainWindow.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\GlfCameraWindow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Sonel.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\GlfWindow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SoundSource.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\MainWindow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\OctTree.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\devicePrograms.cu">
+    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\devicePrograms.cu">
       <Filter>Source Files</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\brent\Git\sonel-mapping\CMakeFiles\831d8131ab6d2fb821ae48653600b772\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c.rule">
+    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\CMakeFiles\97a10d1f3cd6fe80bdc1c901800108b3\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\brent\Git\sonel-mapping\sonel-mapping\CMakeLists.txt" />
+    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="CMake Rules">
-      <UniqueIdentifier>{8BD5F35D-86EA-3D74-971B-2240021BE7AA}</UniqueIdentifier>
+      <UniqueIdentifier>{C38462A9-E913-3BF8-A28F-09336900F7DA}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{B4BAB762-0952-35B9-B6EC-819722A24119}</UniqueIdentifier>
+      <UniqueIdentifier>{A177DF1D-995B-3A08-A8F6-3D1B2147CFFB}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{6BB0998F-6EEF-3967-B9E4-3E7FDA8E8DF3}</UniqueIdentifier>
+      <UniqueIdentifier>{9E3F7F7C-623E-3F34-8A7B-7B91F669E619}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
