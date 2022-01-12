@@ -25,7 +25,7 @@
 
 #define CUDA_CHECK(call)                                                \
     {                                                                 \
-      cudaError_t rc = cuda##call;                                      \
+      cudaError_t rc = call;                                      \
       if (rc != cudaSuccess) {                                          \
         std::stringstream txt;                                          \
         cudaError_t err =  rc; /*cudaGetLastError();*/                   \
@@ -37,7 +37,7 @@
 
 #define CUDA_CHECK_NOEXCEPT(call)                                        \
     {									\
-      cuda##call;                                                       \
+      call;                                                       \
     }
 
 #define OPTIX_CHECK( call )                                             \

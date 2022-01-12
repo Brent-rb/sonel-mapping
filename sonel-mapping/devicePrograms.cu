@@ -21,11 +21,10 @@
 #include "LaunchParams.h"
 #include "gdt/random/random.h"
 #include "Sonel.h"
+#include "OctTree.h"
 
 using namespace gdt;
 
-#define NUM_LIGHT_SAMPLES 1
-#define NUM_PIXEL_SAMPLES 1
 #define RADIUS 5.0f
 #define UINT32_MAX (0xffffffff)
 #define E_PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062f
@@ -165,7 +164,7 @@ extern "C" __global__ void __closesthit__radiance() {
 		prd.pixelColor = vec3f(pixelColor.x, pixelColor.x, pixelColor.x);
 	}
 	else {
-		prd.pixelColor = vec3f(round(energy) / 255, (int)(round(energy)) % 255, 0.0f);
+		prd.pixelColor = vec3f((int) round(energy) / 255, (int)(round(energy)) % 255, 0.0f);
 	}
 	
 }
@@ -350,7 +349,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 	vec3f newRayDirection;
 	prd.distance += length(surfPos - rayOrigin);
 
-	if (bounceProbality < 0.5f) {
+	if (bounceProbality < 0.45f) {
 		prd.depth += 1;
 		sonel->energy = prd.energy;
 		sonel->frequency = launchParams.sonelMap.soundSource.frequency;

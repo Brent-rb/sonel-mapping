@@ -97,7 +97,7 @@ Scene loadSponza() {
 		camera,
 		light,
 		source,
-		10.0f, // Seconds
+		6.0f, // Seconds
 		343.0f, // m/s
 		0.3f // meter
 	};

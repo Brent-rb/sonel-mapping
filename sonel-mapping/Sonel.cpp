@@ -2,18 +2,20 @@
 #include <iostream>
 #include <format>
 
-SonelMap::SonelMap(Sonel sonels[], uint32_t sonelAmount, uint32_t depth, float echogramDuration, float soundSpeed) {
+SonelMap::SonelMap(Sonel sonels[], uint32_t sonelAmount, uint32_t depth, float echogramDuration, float soundSpeed, gdt::box3f bounds) {
+	BoundingBox bb = BoundingBox(bounds.lower, bounds.upper);
+	
 	resolution = 0.1;
 	timestep = 0.005;
 
 	uint64_t maxTimesteps = (uint64_t)ceil(echogramDuration / timestep) + 1;
 	sonelMap.resize(maxTimesteps);
 	for (int i = 0; i < maxTimesteps; i++) {
-		sonelMap[i] = std::vector<Sonel>();
+		sonelMap[i].init(bb, 20);
 	}
 
 
-	Sonel* tempSonel;
+	
 	int rayIndex = 0;
 	int rayDepth = 0;
 	int timeIndex;
@@ -23,19 +25,19 @@ SonelMap::SonelMap(Sonel sonels[], uint32_t sonelAmount, uint32_t depth, float e
 	char keyBuffer[512];
 
 	do {
-		tempSonel = &sonels[rayIndex * depth + rayDepth];
+		Sonel& tempSonel = sonels[rayIndex * depth + rayDepth];
 
-		if (tempSonel->energy < 0.0001f) {
+		if (tempSonel.energy < 0.0001f) {
 			rayIndex++;
 			rayDepth = 0;
 		}
 		else {
 			rayDepth++;
 
-			timeIndex = round((tempSonel->distance / soundSpeed) / timestep);
+			timeIndex = round((tempSonel.distance / soundSpeed) / timestep);
 
 			if (timeIndex < sonelMap.size())
-				sonelMap[timeIndex].push_back(*tempSonel);
+				sonelMap[timeIndex].insert(&tempSonel, tempSonel.position);
 		}
 	}
 	while (rayIndex < sonelAmount);
@@ -45,8 +47,8 @@ SonelMap::~SonelMap() {
 
 }
 
-void SonelMap::getTimestep(int index, std::vector<Sonel>& sonels) {
-	sonels = sonelMap[index];
+OctTree<Sonel>& SonelMap::getTimestep(int index) {
+	return sonelMap[index];
 }
 
 int SonelMap::getTimestepAmount() {

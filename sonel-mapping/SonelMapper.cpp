@@ -134,9 +134,9 @@ void SonelMapper::createTextures() {
 		channel_desc = cudaCreateChannelDesc<uchar4>();
 
 		cudaArray_t& pixelArray = textureArrays[textureID];
-		CUDA_CHECK(MallocArray(&pixelArray, &channel_desc, width, height));
+		CUDA_CHECK(cudaMallocArray(&pixelArray, &channel_desc, width, height));
 
-		CUDA_CHECK(Memcpy2DToArray(pixelArray,
+		CUDA_CHECK(cudaMemcpy2DToArray(pixelArray,
 			/* offset */ 0, 0, texture->pixel, pitch, pitch,
 			height, cudaMemcpyHostToDevice));
 
@@ -158,7 +158,7 @@ void SonelMapper::createTextures() {
 
 		// Create texture object
 		cudaTextureObject_t cuda_tex = 0;
-		CUDA_CHECK(CreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
+		CUDA_CHECK(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
 		textureObjects[textureID] = cuda_tex;
 	}
 }
@@ -325,8 +325,8 @@ static void context_log_cb(unsigned int level, const char* tag,
 void SonelMapper::createContext() {
 	// for this sample, do everything on one device
 	const int deviceID = 0;
-	CUDA_CHECK(SetDevice(deviceID));
-	CUDA_CHECK(StreamCreate(&stream));
+	CUDA_CHECK(cudaSetDevice(deviceID));
+	CUDA_CHECK(cudaStreamCreate(&stream));
 
 	cudaGetDeviceProperties(&deviceProps, deviceID);
 	std::cout << "#osc: running on device: " << deviceProps.name << std::endl;
@@ -937,7 +937,7 @@ void SonelMapper::render() {
 		sonelMap.resize(launchParams.sonelMap.sonelBufferSize);
 		downloadSonelMap(sonelMap.data());
 
-		this->sonelMap = new SonelMap(sonelMap.data(), launchParams.sonelMap.sonelAmount, launchParams.sonelMap.sonelMaxDepth, launchParams.sonelMap.echogramDuration, launchParams.sonelMap.soundSpeed);
+		this->sonelMap = new SonelMap(sonelMap.data(), launchParams.sonelMap.sonelAmount, launchParams.sonelMap.sonelMaxDepth, launchParams.sonelMap.echogramDuration, launchParams.sonelMap.soundSpeed, model->bounds);
 		sonelMapIndex = 0;
 	}
 
@@ -1018,34 +1018,17 @@ void SonelMapper::downloadSonelMap(Sonel sonels[]) {
 
 void SonelMapper::uploadSonelMapSnapshot(int index) {
 	printf("Uploading index %d\n", index);
-	std::vector<Sonel> sonels;
 	
-	sonelMap->getTimestep(index, sonels);
-	if (sonels.size() == 0) {
-		sonels.push_back({
-			gdt::vec3f(),
-			gdt::vec3f(),
-			0,
-			0,
-			0
-			});
+	if (launchParams.octTree != nullptr) {
+		OctTree<Sonel>::clear(launchParams.octTree);
+		cudaFree(launchParams.octTree);
+		launchParams.octTree = nullptr;
 	}
+	
+	OctTree<Sonel>& octTree = sonelMap->getTimestep(index);
+	OctTree<Sonel>* deviceOctTree = octTree.upload();
 
-	BoundingBox box(model->bounds.lower, model->bounds.upper);
-	uint32_t maxItems = 20;
-	OctTree<Sonel> octTree(box, maxItems);
-
-	for (int i = 0; i < sonels.size(); i++) {
-		octTree.insert(&(sonels[i]), sonels[i].position);
-	}
-
-	// OctTree<Sonel>* deviceOctTree = octTree.upload();
-
-	sonelMapBuffer.resize(sonels.size() * sizeof(Sonel));
-	sonelMapBuffer.upload(sonels.data(), sonels.size());
-	launchParams.sonelMap.sonelBuffer = (Sonel*)sonelMapBuffer.d_pointer();
-	launchParams.sonelMap.sonelBufferSize = sonels.size();
-	// launchParams.octTree = deviceOctTree;
+	launchParams.octTree = deviceOctTree;
 }
 
 /*! download the rendered color buffer */

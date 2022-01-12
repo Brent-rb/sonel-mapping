@@ -1,9 +1,7 @@
 #pragma once
 
 #include "gdt/math/vec.h"
-#include <cuda_runtime.h>
-#include <optix.h>
-#include <optix_stubs.h>
+#include "optix7.h"
 
 template <typename T>
 struct OctTreeItem {
@@ -49,9 +47,9 @@ public:
 
 	__device__ __host__ bool contains(const gdt::vec3f& point) {
 		return
-			(point.x > lowerBound.x && point.x < upperBound.x) &&
-			(point.y > lowerBound.y && point.y < upperBound.y) &&
-			(point.z > lowerBound.z && point.z < upperBound.z);
+			(point.x >= lowerBound.x && point.x <= upperBound.x) &&
+			(point.y >= lowerBound.y && point.y <= upperBound.y) &&
+			(point.z >= lowerBound.z && point.z <= upperBound.z);
 	}
 
 	gdt::vec3f lowerBound;
@@ -69,11 +67,11 @@ public:
 		init(boundingBox, maxItems);
 	}
 
-	~OctTree() {
-		if (!isLeaf()) {
+	void destroy() {
+		if (children != nullptr) {
 			delete[] children;
 		}
-		else {
+		if (data != nullptr) {
 			delete[] data;
 		}
 	}
@@ -91,61 +89,79 @@ public:
 	}
 
 	bool insert(const T* item, const gdt::vec3f& position) {
-		printf("Inserting [%.2f, %.2f, %.2f] into [%.2f -> %.2f, %.2f -> %.2f, %.2f -> %.2f], current: %d, max: %d\n",
+		/*printf("Inserting [%.2f, %.2f, %.2f] into [%.2f -> %.2f, %.2f -> %.2f, %.2f -> %.2f], current: %d, max: %d\n",
 			position.x, position.y, position.z,
 			boundingBox.lowerBound.x, boundingBox.upperBound.x,
 			boundingBox.lowerBound.y, boundingBox.upperBound.y,
 			boundingBox.lowerBound.z, boundingBox.upperBound.z,
 			currentItems, maxItems
-		);
+		);*/
 
 		if (!boundingBox.contains(position)) {
-			printf("OctTree does not contain position, not inserting\n");
+			// printf("OctTree does not contain position, not inserting\n");
 			return false;
 		}
 
 		if (isLeaf()) {
 			if (hasRoom()) {
-				printf("OctTree contains position, inserting in data\n");
+				// printf("OctTree contains position, inserting in data\n");
 				insertInHere(item, position);
 				return true;
 			}
 			else {
-				printf("OctTree contains position, data is full -> splitting octtree.\n");
+				// printf("OctTree contains position, data is full -> splitting octtree.\n");
 				split();
 				return insertInChildren(item, position);
 			}
 		}
 		else {
-			printf("OctTree contains position, inserting in children.\n");
+			// printf("OctTree contains position, inserting in children.\n");
 			return insertInChildren(item, position);
 		}
 	}
 
 	__device__ __host__ OctTreeResult<T> get(const gdt::vec3f& point) {
-		if (boundingBox.contains(point)) {
-			if (isLeaf()) {
-				return {
-					data,
-					maxItems,
-					currentItems
-				};
-			}
-			else {
-				for (int i = 0; i < 8; i++) {
-					if (children[i].contains(point)) {
-						return children[i].get(point);
-					}
-				}
-			}
-		}
-		else {
+		if (!contains(point)) {
 			return {
 				nullptr,	// Data
 				0,		// maxItems
 				0		// currentItems
 			};
 		}
+		
+		OctTree* children = this->children;
+		int index = 0;
+
+		while (index < 8 && children != nullptr) {
+			// printf("Checking child %d\n", index);
+			OctTree& octTree = children[index];
+
+			if (octTree.contains(point)) {
+				// printf("\tContains point\n");
+				if (octTree.isLeaf()) {
+					// printf("\Is leaf\n");
+					return {
+						octTree.data,
+						octTree.maxItems,
+						octTree.currentItems
+					};
+				}
+				else {
+					// printf("\Is node, going deeper...\n");
+					children = octTree.children;
+					index = 0;
+				}
+			}
+			else {
+				index++;
+			}
+		}
+
+		return {
+				nullptr,	// Data
+				0,		// maxItems
+				0		// currentItems
+		};
 	}
 
 	uint32_t getCount() {
@@ -156,46 +172,60 @@ public:
 		return maxItems;
 	}
 
-	OctTree* upload() {
-		OctTree* deviceOctTree;
+	OctTree<T>* upload() {
+		OctTree<T>* deviceOctTree;
 
 		// Allocate space for base class on CUDA Device
-		cudaMalloc((void**)&deviceOctTree, sizeof(OctTree));
+		cudaMalloc((void**)&deviceOctTree, sizeof(OctTree<T>));
 		// Copy data from host to cuda device
-		cudaMemcpy(deviceOctTree, this, sizeof(OctTree), cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceOctTree, this, sizeof(OctTree<T>), cudaMemcpyHostToDevice);
 
-		// upload(deviceOctTree);
+		upload(deviceOctTree);
 
 		return deviceOctTree;
 	}
 
-	void upload(OctTree* deviceOctTree) {
+	void upload(OctTree<T>* deviceOctTree) {
 		if (isLeaf()) {
 			OctTreeItem<T>* octTreeData;
 
 			// Allocate space for the data array
-			cudaMalloc((void**)&octTreeData, maxItems * sizeof(OctTreeItem<T>));
+			CUDA_CHECK(cudaMalloc((void**)&octTreeData, maxItems * sizeof(OctTreeItem<T>)));
 			// Copy data
-			cudaMemcpy(octTreeData, data, currentItems * sizeof(OctTreeItem<T>), cudaMemcpyHostToDevice);
+			CUDA_CHECK(cudaMemcpy(octTreeData, data, currentItems * sizeof(OctTreeItem<T>), cudaMemcpyHostToDevice));
 
 			// Copy pointer over
-			cudaMemcpy(&(deviceOctTree->data), &octTreeData, sizeof(OctTreeItem<T>*), cudaMemcpyHostToDevice);
+			CUDA_CHECK(cudaMemcpy(&(deviceOctTree->data), &octTreeData, sizeof(OctTreeItem<T>*), cudaMemcpyHostToDevice));
 		}
 		else {
 			OctTree<T>* octTreeChildren;
 
 			// Allocate space for the children array
-			cudaMalloc((void**)&octTreeChildren, 8 * sizeof(OctTree<T>));
+			CUDA_CHECK(cudaMalloc((void**)&octTreeChildren, 8 * sizeof(OctTree<T>)));
 			// Copy children
-			cudaMemcpy(octTreeChildren, children, 8 * sizeof(OctTree<T>), cudaMemcpyHostToDevice);
+			CUDA_CHECK(cudaMemcpy(octTreeChildren, children, 8 * sizeof(OctTree<T>), cudaMemcpyHostToDevice));
 
 			// Copy pointer over
-			cudaMemcpy(&(deviceOctTree->children), &octTreeChildren, sizeof(OctTree<T>*), cudaMemcpyHostToDevice);
-		
+			CUDA_CHECK(cudaMemcpy(&(deviceOctTree->children), &octTreeChildren, sizeof(OctTree<T>*), cudaMemcpyHostToDevice));
+			
+
 			for (int i = 0; i < 8; i++) {
-				children[i].upload(&(deviceOctTree->children[i]));
+				children[i].upload(&octTreeChildren[i]);
 			}
 		}
+	}
+
+	static void clear(OctTree<T>* devicePtr) {
+		OctTree<T> octTree;
+		CUDA_CHECK(cudaMemcpy(&octTree, devicePtr, sizeof(OctTree<T>), cudaMemcpyDeviceToHost));
+
+		if (octTree.children != nullptr) {
+			for (int i = 0; i < 8; i++) {
+				clear(&(octTree.children[i]));
+			}
+			CUDA_CHECK(cudaFree(octTree.children));
+		}
+		CUDA_CHECK(cudaFree(octTree.data));
 	}
 
 protected:
@@ -254,8 +284,8 @@ protected:
 		children[7].init(bb8, maxItems);
 
 		for (int i = 0; i < currentItems; i++) {
-			OctTreeItem<T>* item = &data[i];
-			assert(insertInChildren(&(item->data), item.position));
+			OctTreeItem<T>& item = data[i];
+			assert(insertInChildren(&(item.data), item.position));
 		}
 
 		delete[] data;
