@@ -39,6 +39,5 @@ struct LaunchParams {
 	} camera;
 
 	OctTree<Sonel>* octTree;
-
 	OptixTraversableHandle traversable;
 };

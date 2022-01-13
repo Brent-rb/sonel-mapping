@@ -14,17 +14,16 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "SonelMapper.h"
-
-// this include may only appear in a single source file:
-#include <optix_function_table_definition.h>
-
-#include "Model.h"
-#include "OctTree.h"
-#include "TriangleMeshSbtData.h"
 #include <vector>
 
+#include "SonelMapper.h"
+#include "CudaHelper.h"
+#include "TriangleMeshSbtData.h"
+#include "Model.h"
+
 extern "C" char embedded_mapper_code[];
+
+enum SonelMapperRayTypes { DefaultRay = 0, RaySize };
 
 /*! SBT record for a raygen program */
 struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) RaygenRecord {
@@ -51,21 +50,17 @@ struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord {
 	TriangleMeshSbtData data;
 };
 
-/*! constructor - performs all setup, including initializing
-	optix, creates module, pipeline, programs, SBT, etc. */
 SonelMapper::SonelMapper(
-	const Model* model, 
-	const std::vector<SoundSource>& soundSources, 
-	float echogramDuration, 
-	float soundSpeed, 
-	float earSize,
-	uint32_t frequencySize
-): model(model), frequencyIndex(0), frequencySize(frequencySize) {
-	initOptix();
-
-	sonelMap.setSoundSources(soundSources);
-	sonelMap.duration = echogramDuration;
-	sonelMap.soundSpeed = soundSpeed;
+	const OptixSetup& optixSetup,
+	const OptixScene& cudaScene,
+	SonelMapperConfig config
+): optixSetup(optixSetup), 
+cudaScene(cudaScene), 
+frequencyIndex(0), 
+frequencySize(config.frequencySize) {
+	sonelMap.setSoundSources(config.soundSources);
+	sonelMap.duration = config.echogramDuration;
+	sonelMap.soundSpeed = config.soundSpeed;
 	sonelMap.timestep = 0.01;
 
 	sonelMapDevicePtr = sonelMap.cudaCreate();
@@ -76,27 +71,22 @@ SonelMapper::SonelMapper(
 	launchParams.sonelMapData = sonelMapDevicePtr;
 	launchParamsDevicePtr = paramsDevice;
 
-	std::cout << "#osc: creating optix context ..." << std::endl;
-	createContext();
-
-	std::cout << "#osc: setting up module ..." << std::endl;
+	std::cout << "[SonelMapper] Creating sonel module." << std::endl;
 	createSonelModule();
 
-	std::cout << "#osc: creating raygen programs ..." << std::endl;
+	std::cout << "[SonelMapper] Creating sonel raygen programs." << std::endl;
 	createSonelRaygenPrograms();
 
-	std::cout << "#osc: creating miss programs ..." << std::endl;
+	std::cout << "[SonelMapper] Creating sonel miss programs." << std::endl;
 	createSonelMissPrograms();
 
-	std::cout << "#osc: creating hitgroup programs ..." << std::endl;
+	std::cout << "[SonelMapper] Creating sonel hit programs." << std::endl;
 	createSonelHitgroupPrograms();
 
-	launchParams.traversable = buildAccel();
+	launchParams.traversable = cudaScene.getTraversableHandle();
 
 	std::cout << "#osc: setting up optix pipeline ..." << std::endl;
 	createSonelPipeline();
-
-	createTextures();
 
 	std::cout << "#osc: building SBT ..." << std::endl;
 	buildSonelSbt();
@@ -107,231 +97,6 @@ SonelMapper::SonelMapper(
 	std::cout << GDT_TERMINAL_GREEN;
 	std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
 	std::cout << GDT_TERMINAL_DEFAULT;
-}
-
-void SonelMapper::createTextures() {
-	int numTextures = (int)model->textures.size();
-
-	textureArrays.resize(numTextures);
-	textureObjects.resize(numTextures);
-
-	for (int textureID = 0; textureID < numTextures; textureID++) {
-		auto texture = model->textures[textureID];
-
-		cudaResourceDesc res_desc = {};
-
-		cudaChannelFormatDesc channel_desc;
-		int32_t width = texture->resolution.x;
-		int32_t height = texture->resolution.y;
-		int32_t numComponents = 4;
-		int32_t pitch = width * numComponents * sizeof(uint8_t);
-		channel_desc = cudaCreateChannelDesc<uchar4>();
-
-		cudaArray_t& pixelArray = textureArrays[textureID];
-		CUDA_CHECK(cudaMallocArray(&pixelArray, &channel_desc, width, height));
-
-		CUDA_CHECK(cudaMemcpy2DToArray(pixelArray,
-			/* offset */ 0, 0, texture->pixel, pitch, pitch,
-			height, cudaMemcpyHostToDevice));
-
-		res_desc.resType = cudaResourceTypeArray;
-		res_desc.res.array.array = pixelArray;
-
-		cudaTextureDesc tex_desc = {};
-		tex_desc.addressMode[0] = cudaAddressModeWrap;
-		tex_desc.addressMode[1] = cudaAddressModeWrap;
-		tex_desc.filterMode = cudaFilterModeLinear;
-		tex_desc.readMode = cudaReadModeNormalizedFloat;
-		tex_desc.normalizedCoords = 1;
-		tex_desc.maxAnisotropy = 1;
-		tex_desc.maxMipmapLevelClamp = 99;
-		tex_desc.minMipmapLevelClamp = 0;
-		tex_desc.mipmapFilterMode = cudaFilterModePoint;
-		tex_desc.borderColor[0] = 1.0f;
-		tex_desc.sRGB = 0;
-
-		// Create texture object
-		cudaTextureObject_t cuda_tex = 0;
-		CUDA_CHECK(cudaCreateTextureObject(&cuda_tex, &res_desc, &tex_desc, nullptr));
-		textureObjects[textureID] = cuda_tex;
-	}
-}
-
-OptixTraversableHandle SonelMapper::buildAccel() {
-	const int numMeshes = (int)model->meshes.size();
-	vertexBuffer.resize(numMeshes);
-	normalBuffer.resize(numMeshes);
-	texcoordBuffer.resize(numMeshes);
-	indexBuffer.resize(numMeshes);
-
-	OptixTraversableHandle asHandle{ 0 };
-
-	// ==================================================================
-	// triangle inputs
-	// ==================================================================
-	std::vector<OptixBuildInput> triangleInput(numMeshes);
-	std::vector<CUdeviceptr> d_vertices(numMeshes);
-	std::vector<CUdeviceptr> d_indices(numMeshes);
-	std::vector<uint32_t> triangleInputFlags(numMeshes);
-
-	for (int meshID = 0; meshID < numMeshes; meshID++) {
-		// upload the model to the device: the builder
-		TriangleMesh& mesh = *model->meshes[meshID];
-		vertexBuffer[meshID].alloc_and_upload(mesh.vertex);
-		indexBuffer[meshID].alloc_and_upload(mesh.index);
-		if (!mesh.normal.empty())
-			normalBuffer[meshID].alloc_and_upload(mesh.normal);
-		if (!mesh.texcoord.empty())
-			texcoordBuffer[meshID].alloc_and_upload(mesh.texcoord);
-
-		triangleInput[meshID] = {};
-		triangleInput[meshID].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-
-		// create local variables, because we need a *pointer* to the
-		// device pointers
-		d_vertices[meshID] = vertexBuffer[meshID].d_pointer();
-		d_indices[meshID] = indexBuffer[meshID].d_pointer();
-
-		triangleInput[meshID].triangleArray.vertexFormat =
-			OPTIX_VERTEX_FORMAT_FLOAT3;
-		triangleInput[meshID].triangleArray.vertexStrideInBytes = sizeof(vec3f);
-		triangleInput[meshID].triangleArray.numVertices = (int)mesh.vertex.size();
-		triangleInput[meshID].triangleArray.vertexBuffers = &d_vertices[meshID];
-
-		triangleInput[meshID].triangleArray.indexFormat =
-			OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-		triangleInput[meshID].triangleArray.indexStrideInBytes = sizeof(vec3i);
-		triangleInput[meshID].triangleArray.numIndexTriplets =
-			(int)mesh.index.size();
-		triangleInput[meshID].triangleArray.indexBuffer = d_indices[meshID];
-
-		triangleInputFlags[meshID] = 0;
-
-		// in this example we have one SBT entry, and no per-primitive
-		// materials:
-		triangleInput[meshID].triangleArray.flags = &triangleInputFlags[meshID];
-		triangleInput[meshID].triangleArray.numSbtRecords = 1;
-		triangleInput[meshID].triangleArray.sbtIndexOffsetBuffer = 0;
-		triangleInput[meshID].triangleArray.sbtIndexOffsetSizeInBytes = 0;
-		triangleInput[meshID].triangleArray.sbtIndexOffsetStrideInBytes = 0;
-	}
-	// ==================================================================
-	// BLAS setup
-	// ==================================================================
-
-	OptixAccelBuildOptions accelOptions = {};
-	accelOptions.buildFlags =
-		OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
-	accelOptions.motionOptions.numKeys = 1;
-	accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-	OptixAccelBufferSizes blasBufferSizes;
-	OPTIX_CHECK(optixAccelComputeMemoryUsage(optixContext, &accelOptions,
-		triangleInput.data(),
-		(int)numMeshes, // num_build_inputs
-		&blasBufferSizes));
-
-	// ==================================================================
-	// prepare compaction
-	// ==================================================================
-
-	CUDABuffer compactedSizeBuffer;
-	compactedSizeBuffer.alloc(sizeof(uint64_t));
-
-	OptixAccelEmitDesc emitDesc;
-	emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-	emitDesc.result = compactedSizeBuffer.d_pointer();
-
-	// ==================================================================
-	// execute build (main stage)
-	// ==================================================================
-
-	CUDABuffer tempBuffer;
-	tempBuffer.alloc(blasBufferSizes.tempSizeInBytes);
-
-	CUDABuffer outputBuffer;
-	outputBuffer.alloc(blasBufferSizes.outputSizeInBytes);
-
-	OPTIX_CHECK(optixAccelBuild(
-		optixContext,
-		/* stream */ 0, &accelOptions, triangleInput.data(), (int)numMeshes,
-		tempBuffer.d_pointer(), tempBuffer.sizeInBytes,
-
-		outputBuffer.d_pointer(), outputBuffer.sizeInBytes,
-
-		&asHandle,
-
-		&emitDesc, 1));
-	CUDA_SYNC_CHECK();
-
-	// ==================================================================
-	// perform compaction
-	// ==================================================================
-	uint64_t compactedSize;
-	compactedSizeBuffer.download(&compactedSize, 1);
-
-	asBuffer.alloc(compactedSize);
-	OPTIX_CHECK(optixAccelCompact(optixContext,
-		/*stream:*/ 0, asHandle, asBuffer.d_pointer(),
-		asBuffer.sizeInBytes, &asHandle));
-	CUDA_SYNC_CHECK();
-
-	// ==================================================================
-	// aaaaaand .... clean up
-	// ==================================================================
-	outputBuffer.free(); // << the UNcompacted, temporary output buffer
-	tempBuffer.free();
-	compactedSizeBuffer.free();
-
-	return asHandle;
-}
-
-/*! helper function that initializes optix and checks for errors */
-void SonelMapper::initOptix() {
-	std::cout << "#osc: initializing optix..." << std::endl;
-
-	// -------------------------------------------------------
-	// check for available optix7 capable devices
-	// -------------------------------------------------------
-	cudaFree(0);
-	int numDevices;
-	cudaGetDeviceCount(&numDevices);
-	if (numDevices == 0)
-		throw std::runtime_error("#osc: no CUDA capable devices found!");
-	std::cout << "#osc: found " << numDevices << " CUDA devices" << std::endl;
-
-	// -------------------------------------------------------
-	// initialize optix
-	// -------------------------------------------------------
-	OPTIX_CHECK(optixInit());
-	std::cout << GDT_TERMINAL_GREEN
-		<< "#osc: successfully initialized optix... yay!"
-		<< GDT_TERMINAL_DEFAULT << std::endl;
-}
-
-static void context_log_cb(unsigned int level, const char* tag,
-	const char* message, void*) {
-	fprintf(stderr, "[%2d][%12s]: %s\n", (int)level, tag, message);
-}
-
-/*! creates and configures a optix device context (in this simple
-	example, only for the primary GPU device) */
-void SonelMapper::createContext() {
-	// for this sample, do everything on one device
-	const int deviceID = 0;
-	CUDA_CHECK(cudaSetDevice(deviceID));
-	CUDA_CHECK(cudaStreamCreate(&stream));
-
-	cudaGetDeviceProperties(&deviceProps, deviceID);
-	std::cout << "#osc: running on device: " << deviceProps.name << std::endl;
-
-	CUresult cuRes = cuCtxGetCurrent(&cudaContext);
-	if (cuRes != CUDA_SUCCESS)
-		fprintf(stderr, "Error querying current context: error code %d\n", cuRes);
-
-	OPTIX_CHECK(optixDeviceContextCreate(cudaContext, 0, &optixContext));
-	OPTIX_CHECK(optixDeviceContextSetLogCallback(optixContext, context_log_cb,
-		nullptr, 4));
 }
 
 /*! creates the module that contains all the programs we are going
@@ -356,9 +121,9 @@ void SonelMapper::createSonelModule() {
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
-	OPTIX_CHECK(
+	optixCheck(
 		optixModuleCreateFromPTX(
-			optixContext, \
+			optixSetup.getOptixContext(), 
 			&sonelModuleCompileOptions, 
 			&sonelPipelineCompileOptions,
 			ptxCode.c_str(), 
@@ -366,7 +131,9 @@ void SonelMapper::createSonelModule() {
 			log, 
 			&sizeof_log, 
 			&sonelModule
-		)
+		),
+		"SonelMapper",
+		"Failed to create SonelMapper module."
 	);
 
 	if (sizeof_log > 1)
@@ -376,7 +143,7 @@ void SonelMapper::createSonelModule() {
 /*! does all setup for the raygen program(s) we are going to use */
 void SonelMapper::createSonelRaygenPrograms() {
 	// we do a single ray gen program in this example:
-	sonelRaygenPgs.resize(1);
+	sonelRaygenPgs.resize(SonelMapperRayTypes::RaySize);
 
 	OptixProgramGroupOptions pgOptions = {};
 	OptixProgramGroupDesc pgDesc = {};
@@ -387,16 +154,18 @@ void SonelMapper::createSonelRaygenPrograms() {
 	// OptixProgramGroup raypg;
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
-	OPTIX_CHECK(
+	optixCheck(
 		optixProgramGroupCreate(
-			optixContext,
+			optixSetup.getOptixContext(),
 			&pgDesc,
 			1,
 			&pgOptions,
 			log,
 			&sizeof_log,
-			&sonelRaygenPgs[0]
-		)
+			&sonelRaygenPgs[SonelMapperRayTypes::DefaultRay]
+		),
+		"SonelMapper",
+		"Failed to create raygen programs."
 	);
 	if (sizeof_log > 1)
 		PRINT(log);
@@ -405,7 +174,7 @@ void SonelMapper::createSonelRaygenPrograms() {
 /*! does all setup for the miss program(s) we are going to use */
 void SonelMapper::createSonelMissPrograms() {
 	// we do a single ray gen program in this example:
-	sonelMissPgs.resize(RAY_TYPE_COUNT);
+	sonelMissPgs.resize(SonelMapperRayTypes::RaySize);
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
@@ -420,16 +189,18 @@ void SonelMapper::createSonelMissPrograms() {
 	// ------------------------------------------------------------------
 	pgDesc.miss.entryFunctionName = "__miss__sonelRadiance";
 
-	OPTIX_CHECK(
+	optixCheck(
 		optixProgramGroupCreate(
-			optixContext, 
+			optixSetup.getOptixContext(), 
 			&pgDesc, 
 			1, 
 			&pgOptions, 
 			log,
 			&sizeof_log,
-			&sonelMissPgs[RADIANCE_RAY_TYPE]
-		)
+			&sonelMissPgs[SonelMapperRayTypes::DefaultRay]
+		),
+		"SonelMapper",
+		"Failed to create miss programs."
 	);
 
 	if (sizeof_log > 1)
@@ -439,7 +210,7 @@ void SonelMapper::createSonelMissPrograms() {
 /*! does all setup for the hitgroup program(s) we are going to use */
 void SonelMapper::createSonelHitgroupPrograms() {
 	// for this simple example, we set up a single hit group
-	sonelHitgroupPgs.resize(RAY_TYPE_COUNT);
+	sonelHitgroupPgs.resize(SonelMapperRayTypes::RaySize);
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
@@ -456,9 +227,19 @@ void SonelMapper::createSonelHitgroupPrograms() {
 	pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__sonelRadiance";
 	pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__sonelRadiance";
 
-	OPTIX_CHECK(optixProgramGroupCreate(optixContext, &pgDesc, 1, &pgOptions, log,
-		&sizeof_log,
-		&sonelHitgroupPgs[RADIANCE_RAY_TYPE]));
+	optixCheck(
+		optixProgramGroupCreate(
+			optixSetup.getOptixContext(), 
+			&pgDesc, 
+			1, &
+			pgOptions, 
+			log,
+			&sizeof_log,
+			&sonelHitgroupPgs[SonelMapperRayTypes::DefaultRay]
+		),
+		"SonelMapper",
+		"Failed to create closest hit and any hit programs."
+	);
 	if (sizeof_log > 1)
 		PRINT(log);
 }
@@ -481,9 +262,9 @@ void SonelMapper::createSonelPipeline() {
 	PING;
 	PRINT(programGroups.size());
 
-	OPTIX_CHECK(
+	optixCheck(
 		optixPipelineCreate(
-			optixContext,
+			optixSetup.getOptixContext(),
 			&sonelPipelineCompileOptions,
 			&sonelPipelineLinkOptions,
 			programGroups.data(),
@@ -491,13 +272,15 @@ void SonelMapper::createSonelPipeline() {
 			log,
 			&sizeof_log,
 			&sonelPipeline
-		)
+		),
+		"SonelMapper",
+		"Failed to create sonel pipeline."
 	);
 
 	if (sizeof_log > 1)
 		PRINT(log);
 
-	OPTIX_CHECK(
+	optixCheck(
 		optixPipelineSetStackSize(
 			/* [in] The pipeline to configure the stack size for */
 			sonelPipeline,
@@ -513,7 +296,9 @@ void SonelMapper::createSonelPipeline() {
 			/* [in] The maximum depth of a traversable graph
 				passed to trace. */
 			1
-		)
+		),
+		"SonelMapper",
+		"Failed to set stack size."
 	);
 
 	if (sizeof_log > 1)
@@ -552,32 +337,19 @@ void SonelMapper::buildSonelMissRecords() {
 }
 
 void SonelMapper::buildSonelHitgroupRecords() {
+	const Model* model = cudaScene.getModel();
 	int numObjects = (int)model->meshes.size();
 
 	std::vector<HitgroupRecord> hitgroupRecords;
 	for (int meshId = 0; meshId < numObjects; meshId++) {
 		TriangleMesh* mesh = model->meshes[meshId];
 
-		for (int rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
+		for (int rayId = 0; rayId < SonelMapperRayTypes::RaySize; rayId++) {
 			HitgroupRecord rec;
 
 			OPTIX_CHECK(optixSbtRecordPackHeader(sonelHitgroupPgs[rayId], &rec));
 
-			// Load color data
-			rec.data.color = mesh->diffuse;
-			if (mesh->diffuseTextureId >= 0) {
-				rec.data.hasTexture = true;
-				rec.data.texture = textureObjects[mesh->diffuseTextureId];
-			}
-			else {
-				rec.data.hasTexture = false;
-			}
-
-			// Load vector data
-			rec.data.index = (vec3i*)indexBuffer[meshId].d_pointer();
-			rec.data.vertex = (vec3f*)vertexBuffer[meshId].d_pointer();
-			rec.data.normal = (vec3f*)normalBuffer[meshId].d_pointer();
-			rec.data.texcoord = (vec2f*)texcoordBuffer[meshId].d_pointer();
+			cudaScene.fill(meshId, rec.data);
 
 			hitgroupRecords.push_back(rec);
 		}
@@ -597,6 +369,8 @@ void SonelMapper::buildSonelSbt() {
 
 /*! render one frame */
 void SonelMapper::calculate() {	
+	const Model* model = cudaScene.getModel();
+
 	BoundingBox box = BoundingBox(model->bounds.lower, model->bounds.upper);
 	uint32_t maxItems = 100;
 
@@ -605,61 +379,81 @@ void SonelMapper::calculate() {
 		octTrees[i].init(box, maxItems);
 	}
 
+	for (uint32_t sourceIndex = 0; sourceIndex < sonelMap.soundSourceSize; sourceIndex++) {
+		SoundSource& soundSource = sonelMap.soundSources[sourceIndex];
+		printf("[SonelMapper] Simulating sound source %d\n", sourceIndex);
 
-	for (int fIndex = 0; fIndex < frequencySize; fIndex++) {
-		printf("Calculating frequency index %d\n", fIndex);
-
-		launchParams.frequencyIndex = fIndex;
-		sonelMap.cudaUpload(sonelMapDevicePtr, fIndex);
-
-		for (int sourceIndex = 0; sourceIndex < sonelMap.soundSourceSize; sourceIndex++) {
-			launchParams.soundSourceIndex = sourceIndex;
-			cudaMemcpy(launchParamsDevicePtr, &launchParams, sizeof(CudaSonelMapperParams), cudaMemcpyHostToDevice);
-			SoundSource& soundSource = sonelMap.soundSources[sourceIndex];
+		for (uint32_t fIndex = 0; fIndex < soundSource.frequencySize; fIndex++) {
 			SoundFrequency& frequency = soundSource.frequencies[fIndex];
+			printf("\tSimulating frequency (%d, %f)\n", fIndex, frequency.frequency);
 
+			sonelMap.cudaUpload(sonelMapDevicePtr, sourceIndex, fIndex);
+			launchParams.frequencyIndex = fIndex;
+			launchOptix(frequency, sourceIndex);
+			downloadSonelDataForFrequency(fIndex, sourceIndex);
+			sonelMap.cudaDestroy(sonelMapDevicePtr, fIndex);
+			cudaSyncCheck("SonelMapper", "Failed to sync.");
+		}
+	}
+}
 
-			OPTIX_CHECK(
-				optixLaunch(
-					/*! pipeline we're launching launch: */
-					sonelPipeline,
-					stream,
+std::vector<OctTree<Sonel>>* SonelMapper::getSonelMap() {
+	return &octTrees;
+}
 
-					/*! parameters and SBT */
-					(CUdeviceptr)launchParamsDevicePtr,
-					sizeof(CudaSonelMapperParams),
-					&sonelSbt,
+void SonelMapper::launchOptix(SoundFrequency& frequency, uint32_t sourceIndex) {
+	launchParams.soundSourceIndex = sourceIndex;
+	cudaMemcpy(launchParamsDevicePtr, &launchParams, sizeof(CudaSonelMapperParams), cudaMemcpyHostToDevice);
+	SoundSource& soundSource = sonelMap.soundSources[sourceIndex];
 
-					/*! dimensions of the launch: */
-					frequency.sonelAmount,
-					frequency.decibelSize,
-					1
-				)
-			);
+	optixCheck(
+		optixLaunch(
+			/*! pipeline we're launching launch: */
+			sonelPipeline,
+			optixSetup.getCudaStream(),
 
-			sonelMap.cudaDownload(sonelMapDevicePtr, fIndex);
+			/*! parameters and SBT */
+			(CUdeviceptr)launchParamsDevicePtr,
+			sizeof(CudaSonelMapperParams),
+			&sonelSbt,
 
-			
-			Sonel* sonels = frequency.sonels;
+			/*! dimensions of the launch: */
+			frequency.sonelAmount,
+			frequency.decibelSize,
+			1
+		),
+		"SonelMapper",
+		"Failed to launch OptiX"
+	);
+}
 
-			for (int i = 0; i < frequency.sonelAmount; i++) {
-				for (int j = 0; j < frequency.sonelMaxDepth; j++) {
-					Sonel& sonel = sonels[i * frequency.sonelMaxDepth + j];
+void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex) {
+	SoundFrequency& frequency = sonelMap.soundSources[sourceIndex].frequencies[fIndex];
+	
+	sonelMap.cudaDownload(sonelMapDevicePtr, sourceIndex, fIndex);
+	Sonel* sonels = frequency.sonels;
 
-					if (sonel.energy < 0.00001f) {
-						break;
-					}
+	// Go over all rays
+	uint64_t sonelAmount = 0;
+	for (int i = 0; i < frequency.sonelAmount; i++) {
+		// Go over each bounce in the ray
+		for (int j = 0; j < frequency.sonelMaxDepth; j++) {
+			Sonel& sonel = sonels[i * frequency.sonelMaxDepth + j];
+			sonel.frequency = frequency.frequency;
 
-					uint64_t timeIndex = static_cast<uint64_t>(sonel.time / sonelMap.timestep);
+			// The energy of a sonel is 0 the ray is absorbed and done.
+			if (sonel.energy < 0.00001f) {
+				break;
+			}
 
-					if (timeIndex < octTrees.size())
-						octTrees[timeIndex].insert(&sonel, sonel.position);
-				}
+			uint64_t timeIndex = static_cast<uint64_t>(sonel.time / sonelMap.timestep);
+
+			if (timeIndex < octTrees.size()) {
+				sonelAmount++;
+				octTrees[timeIndex].insert(&sonel, sonel.position);
 			}
 		}
-
-		sonelMap.cudaDestroy(sonelMapDevicePtr, fIndex);
-
-		CUDA_SYNC_CHECK();
 	}
+
+	printf("[SonelMapper] Sonels added %d\n", sonelAmount);
 }

@@ -43,17 +43,20 @@ extern "C" int main(int ac, char** av) {
 		// camera knows how much to move for any given user interaction:
 		const float worldScale = length(scene.model->bounds.span());
 
-		MainWindow* window = new MainWindow(
-			"Sonel-Mapping",
-			scene.model, 
-			scene.camera, 
-			scene.light, 
-			worldScale,
+		SonelMapperConfig config = {
 			scene.soundSources,
 			scene.echogramDuration,
 			scene.soundSpeed,
 			scene.earSize,
 			scene.frequencies
+		};
+
+		MainWindow* window = new MainWindow(
+			"Sonel-Mapping",
+			scene.model, 
+			scene.camera,
+			worldScale,
+			config
 		);
 
 		window->run();
@@ -78,9 +81,10 @@ Scene loadSponza() {
 	};
 
 	std::vector<SoundSource> soundSources;
-	std::vector<SoundFrequency> frequencies;
+	std::vector<SoundFrequency> frequencies1;
+	std::vector<SoundFrequency> frequencies2;
 
-	SoundFrequency frequency1(1000, 10000, 6), frequency2(2000, 10000, 6), frequency3(3000, 10000, 6), frequency4(4000, 10000, 6);
+	SoundFrequency frequency1(1000, 1000000, 6), frequency2(2000, 1000000, 6), frequency3(3000, 1000000, 6), frequency4(4000, 1000000, 6);
 	std::vector<float> decibels1, decibels2, decibels3, decibels4;
 	for (int i = 0; i < 10; i++) {
 		decibels2.push_back(0.0);
@@ -102,17 +106,23 @@ Scene loadSponza() {
 	frequency3.setDecibels(decibels3);
 	frequency4.setDecibels(decibels4);
 
-	frequencies.push_back(frequency1);
-	frequencies.push_back(frequency2);
-	frequencies.push_back(frequency3);
-	frequencies.push_back(frequency4);
+	frequencies1.push_back(frequency1);
+	frequencies1.push_back(frequency3);
+	frequencies2.push_back(frequency2);
+	frequencies2.push_back(frequency4);
 
 	SoundSource source1;
 	source1.direction = normalize(vec3f(-1.0f, 0.0f, 0.0f));
 	source1.position = vec3f(-900, 150, model->bounds.center().z);
-	source1.setFrequencies(frequencies);
+	source1.setFrequencies(frequencies1);
+
+	SoundSource source2;
+	source2.direction = normalize(vec3f(-1.0f, 0.0f, 0.0f));
+	source2.position = vec3f(-800, 150, model->bounds.center().z + 100);
+	source2.setFrequencies(frequencies2);
 
 	soundSources.push_back(source1);
+	soundSources.push_back(source2);
 
 	// some simple, hard-coded light ... obviously, only works for sponza
 	const float light_size = 200.f;

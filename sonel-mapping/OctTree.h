@@ -89,13 +89,14 @@ public:
 	}
 
 	bool insert(const T* item, const gdt::vec3f& position) {
-		printf("Inserting [%.2f, %.2f, %.2f] into [%.2f -> %.2f, %.2f -> %.2f, %.2f -> %.2f], current: %d, max: %d\n",
+		/*printf("Inserting [%.2f, %.2f, %.2f] into [%.2f -> %.2f, %.2f -> %.2f, %.2f -> %.2f], current: %d, max: %d\n",
 			position.x, position.y, position.z,
 			boundingBox.lowerBound.x, boundingBox.upperBound.x,
 			boundingBox.lowerBound.y, boundingBox.upperBound.y,
 			boundingBox.lowerBound.z, boundingBox.upperBound.z,
 			currentItems, maxItems
 		);
+		*/
 		
 		if (!boundingBox.contains(position)) {
 			// printf("OctTree does not contain position, not inserting\n");

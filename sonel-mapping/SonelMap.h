@@ -40,7 +40,7 @@ public:
 		cudaMemcpy(deviceSonelMap, this, sizeof(SonelMapData), cudaMemcpyHostToDevice);
 	}
 
-	void cudaUpload(SonelMapData* deviceSonelMap, uint16_t frequencyIndex) {
+	void cudaUpload(SonelMapData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
 		cudaCopy(deviceSonelMap);
 
 		SoundSource* deviceSoundSources;
@@ -48,20 +48,16 @@ public:
 		cudaMalloc(&deviceSoundSources, soundSourceSize * sizeof(SoundSource));
 		cudaMemcpy(deviceSoundSources, this->soundSources, soundSourceSize * sizeof(SoundSource), cudaMemcpyHostToDevice);
 	
-		for (int i = 0; i < soundSourceSize; i++) {
-			soundSources[i].cudaUpload(&(deviceSoundSources[i]), frequencyIndex);
-		}
+		soundSources[sourceIndex].cudaUpload(&(deviceSoundSources[sourceIndex]), frequencyIndex);
 
 		cudaMemcpy(&(deviceSonelMap->soundSources), &deviceSoundSources, sizeof(SoundSource*), cudaMemcpyHostToDevice);
 	}
 
-	void cudaDownload(SonelMapData* deviceSonelMap, uint16_t frequencyIndex) {
+	void cudaDownload(SonelMapData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
 		SonelMapData deviceCopy;
 		cudaMemcpy(&deviceCopy, deviceSonelMap, sizeof(SonelMapData), cudaMemcpyDeviceToHost);
 
-		for (int i = 0; i < soundSourceSize; i++) {
-			soundSources[i].cudaDownload(&(deviceCopy.soundSources[i]), frequencyIndex);
-		}
+		soundSources[sourceIndex].cudaDownload(&(deviceCopy.soundSources[sourceIndex]), frequencyIndex);
 	}
 
 	void cudaDestroy(SonelMapData* deviceSonelMap, uint16_t frequencyIndex) {

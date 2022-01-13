@@ -55,22 +55,22 @@ $L__func_begin1:
 	// end inline asm
 $L__tmp1:
 	.loc	1 43 21
-	.loc	3 21 22, function_name $L__info_string1, inlined_at 1 43 21
-	.loc	2 471 5, function_name $L__info_string2, inlined_at 3 21 22
+	.loc	3 23 22, function_name $L__info_string1, inlined_at 1 43 21
+	.loc	2 471 5, function_name $L__info_string2, inlined_at 3 23 22
 	mov.u32 	%r7, 0;
 	// begin inline asm
 	call (%r6), _optix_get_payload, (%r7);
 	// end inline asm
 $L__tmp2:
-	.loc	3 22 22, function_name $L__info_string1, inlined_at 1 43 21
-	.loc	2 478 5, function_name $L__info_string3, inlined_at 3 22 22
+	.loc	3 24 22, function_name $L__info_string1, inlined_at 1 43 21
+	.loc	2 478 5, function_name $L__info_string3, inlined_at 3 24 22
 	mov.u32 	%r9, 1;
 	// begin inline asm
 	call (%r8), _optix_get_payload, (%r9);
 	// end inline asm
 $L__tmp3:
-	.loc	3 23 30, function_name $L__info_string1, inlined_at 1 43 21
-	.loc	3 8 22, function_name $L__info_string4, inlined_at 3 23 30
+	.loc	3 25 30, function_name $L__info_string1, inlined_at 1 43 21
+	.loc	3 10 22, function_name $L__info_string4, inlined_at 3 25 30
 	cvt.u64.u32 	%rd8, %r6;
 	cvt.u64.u32 	%rd9, %r8;
 	bfi.b64 	%rd1, %rd8, %rd9, 32, 32;
@@ -398,7 +398,7 @@ $L__tmp52:
 	setp.gt.ftz.f32 	%p4, %f43, 0f3F666666;
 $L__tmp53:
 	.loc	1 107 3
-	mul.wide.u32 	%rd27, %r17, 32;
+	mul.wide.u32 	%rd27, %r17, 36;
 	add.s64 	%rd6, %rd26, %rd27;
 $L__tmp54:
 	.loc	1 93 2
@@ -632,21 +632,21 @@ $L__func_begin2:
 	mov.u32 	%r2, 0;
 $L__tmp85:
 	.loc	1 146 21
-	.loc	3 21 22, function_name $L__info_string1, inlined_at 1 146 21
-	.loc	2 471 5, function_name $L__info_string2, inlined_at 3 21 22
+	.loc	3 23 22, function_name $L__info_string1, inlined_at 1 146 21
+	.loc	2 471 5, function_name $L__info_string2, inlined_at 3 23 22
 	// begin inline asm
 	call (%r1), _optix_get_payload, (%r2);
 	// end inline asm
 $L__tmp86:
-	.loc	3 22 22, function_name $L__info_string1, inlined_at 1 146 21
-	.loc	2 478 5, function_name $L__info_string3, inlined_at 3 22 22
+	.loc	3 24 22, function_name $L__info_string1, inlined_at 1 146 21
+	.loc	2 478 5, function_name $L__info_string3, inlined_at 3 24 22
 	mov.u32 	%r4, 1;
 	// begin inline asm
 	call (%r3), _optix_get_payload, (%r4);
 	// end inline asm
 $L__tmp87:
-	.loc	3 23 30, function_name $L__info_string1, inlined_at 1 146 21
-	.loc	3 8 22, function_name $L__info_string4, inlined_at 3 23 30
+	.loc	3 25 30, function_name $L__info_string1, inlined_at 1 146 21
+	.loc	3 10 22, function_name $L__info_string4, inlined_at 3 25 30
 	cvt.u64.u32 	%rd1, %r1;
 	cvt.u64.u32 	%rd2, %r3;
 	bfi.b64 	%rd3, %rd1, %rd2, 32, 32;
@@ -658,7 +658,7 @@ $L__tmp88:
 	.loc	1 150 15
 	ld.u64 	%rd4, [%rd3];
 	.loc	1 152 2
-	mul.wide.u32 	%rd5, %r10, 32;
+	mul.wide.u32 	%rd5, %r10, 36;
 	add.s64 	%rd6, %rd4, %rd5;
 	st.u32 	[%rd6+28], %r2;
 	.loc	1 153 2
@@ -810,10 +810,10 @@ $L__tmp101:
 	st.local.f32 	[%rd18+72], %f19;
 $L__tmp102:
 	.loc	1 180 2
-	.loc	3 15 2, function_name $L__info_string35, inlined_at 1 180 2
+	.loc	3 17 2, function_name $L__info_string35, inlined_at 1 180 2
 	shr.u64 	%rd20, %rd17, 32;
 	cvt.u32.u64 	%r52, %rd20;
-	.loc	3 16 2, function_name $L__info_string35, inlined_at 1 180 2
+	.loc	3 18 2, function_name $L__info_string35, inlined_at 1 180 2
 	cvt.u32.u64 	%r53, %rd17;
 $L__tmp103:
 	.loc	1 184 2

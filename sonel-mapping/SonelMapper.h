@@ -18,35 +18,35 @@
 
 // our own classes, partly shared between host and device
 #include "CUDABuffer.h"
-#include "LaunchParams.h"
-#include "Camera.h"
-#include "Model.h"
-#include "SoundSource.h"
 #include "SonelMap.h"
 #include "CudaSonelMapperParams.h"
 #include "OctTree.h"
+#include "OptixSetup.h"
+#include "OptixScene.h"
+
+struct SonelMapperConfig {
+	std::vector<SoundSource>& soundSources;
+	float echogramDuration;
+	float soundSpeed;
+	float earSize;
+	uint32_t frequencySize;
+};
 
 class SonelMapper {
 	public:
 		/*! constructor - performs all setup, including initializing
 		  optix, creates module, pipeline, programs, SBT, etc. */
-		SonelMapper(const Model* model, const std::vector<SoundSource>& soundSources, float echogramDuration, float soundSpeed, float earSize, uint32_t frequencySize);
+		SonelMapper(
+			const OptixSetup& optixSetup,
+			const OptixScene& cudaScene,
+			SonelMapperConfig config
+		);
 
-		/*! render one frame */
+		
 		void calculate();
+		std::vector<OctTree<Sonel>>* getSonelMap();
 
 	protected:
-		// ------------------------------------------------------------------
-		// internal helper functions
-		// ------------------------------------------------------------------
-
-		/*! helper function that initializes optix and checks for errors */
-		void initOptix();
-
-		/*! creates and configures a optix device context (in this simple
-		  example, only for the primary GPU device) */
-		void createContext();
-
 		void createSonelModule();
 
 		void createSonelRaygenPrograms();
@@ -56,11 +56,9 @@ class SonelMapper {
 
 		void buildSonelSbt();
 
-		/*! build an acceleration structure for the given triangle mesh */
-		OptixTraversableHandle buildAccel();
-
-		/*! upload textures, and create cuda texture objects for them */
-		void createTextures();
+		void launchOptix(SoundFrequency& frequency, uint32_t sourceIndex);
+		void launchOptixForFrequency(uint32_t fIndex);
+		void downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex);
 
 	private:
 		void buildSonelRaygenRecords();
@@ -68,29 +66,19 @@ class SonelMapper {
 		void buildSonelHitgroupRecords();
 
 	protected:
-		/*! @{ CUDA device context and stream that optix pipeline will run
-			on, as well as device properties for this device */
-		CUcontext cudaContext;
-		CUstream stream;
-		cudaDeviceProp deviceProps;
-		/*! @} */
+		const OptixSetup& optixSetup;
+		const OptixScene& cudaScene;
 
-		//! the optix context that our pipeline will run in.
-		OptixDeviceContext optixContext;
-
-		/*! @{ the pipeline we're building */
+		// Pipeline
 		OptixPipeline sonelPipeline;
 		OptixPipelineCompileOptions sonelPipelineCompileOptions = {};
 		OptixPipelineLinkOptions sonelPipelineLinkOptions = {};
-		/*! @} */
 
-		/*! @{ the module that contains out device programs */
+		// Module
 		OptixModule sonelModule;
 		OptixModuleCompileOptions sonelModuleCompileOptions = {};
-		/* @} */
 
-		/*! vector of all our program(group)s, and the SBT built around
-			them */
+		// Programs
 		std::vector<OptixProgramGroup> sonelRaygenPgs;
 		CUDABuffer sonelRaygenRecordsBuffer;
 		std::vector<OptixProgramGroup> sonelMissPgs;
@@ -99,26 +87,7 @@ class SonelMapper {
 		CUDABuffer sonelHitgroupRecordsBuffer;
 		OptixShaderBindingTable sonelSbt = {};
 
-		CUDABuffer sonelMapBuffer;
-
-		/*! the model we are going to trace rays against */
-		const Model* model;
-
-		/*! @{ one buffer per input mesh */
-		std::vector<CUDABuffer> vertexBuffer;
-		std::vector<CUDABuffer> normalBuffer;
-		std::vector<CUDABuffer> texcoordBuffer;
-		std::vector<CUDABuffer> indexBuffer;
-		/*! @} */
-
-		//! buffer that keeps the (final, compacted) accel structure
-		CUDABuffer asBuffer;
-
-		/*! @{ one texture object and pixel array per used texture */
-		std::vector<cudaArray_t> textureArrays;
-		std::vector<cudaTextureObject_t> textureObjects;
-		/*! @} */
-
+		// Data
 		SonelMapData sonelMap;
 		SonelMapData* sonelMapDevicePtr;
 

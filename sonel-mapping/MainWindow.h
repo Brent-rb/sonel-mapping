@@ -3,7 +3,7 @@
 // our helper library for window handling
 #include "GlfCameraWindow.h"
 #include <GL/gl.h>
-#include "SonelMapper.h"
+#include "SonelManager.h"
 
 class Model;
 class Camera;
@@ -15,13 +15,8 @@ public:
 		const std::string& title,
 		const Model* model,
 		const Camera& camera,
-		const QuadLight& light,
 		const float worldScale,
-		const std::vector<SoundSource>& soundSources,
-		float echogramDuration,
-		float soundSpeed,
-		float earSize,
-		int frequencySize
+		SonelMapperConfig config
 	);
 
 	virtual void render() override;
@@ -30,6 +25,6 @@ public:
 
 	vec2i fbSize;
 	GLuint fbTexture{ 0 };
-	SonelMapper sonelMapper;
+	SonelManager sonelManager;
 	std::vector<uint32_t> pixels;
 };
