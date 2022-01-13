@@ -1,0 +1,200 @@
+#include <optix_device.h>
+#include <cuda_runtime.h>
+#include <curand_kernel.h>
+
+#include "Sonel.h"
+#include "OctTree.h"
+#include "CudaHelper.h"
+#include "CudaSonelMapperParams.h"
+#include "CudaRandom.h"
+#include "TriangleMeshSbtData.h"
+
+extern "C" __constant__ CudaSonelMapperParams params;
+
+class PerRayData {
+public:
+	__device__ __host__ PerRayData(const CudaRandom& random, const uint32_t index, const float energy):
+		random(random), index(index), dataDepth(0), depth(0), distance(0.0f), energy(energy), specularBounce(false) {
+
+	}
+
+public:
+	Sonel* sonels;
+
+	CudaRandom random;
+
+	uint32_t index;
+	uint32_t dataDepth;
+	uint32_t depth;
+	uint32_t maxDepth;
+
+	float distance;
+	float energy;
+
+	bool specularBounce;
+};
+
+extern "C" __global__ void __anyhit__sonelRadiance() {
+	/* not going to be used ... */
+}
+
+extern "C" __global__ void __closesthit__sonelRadiance() {
+	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*)optixGetSbtDataPointer();
+	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+
+	// ------------------------------------------------------------------
+	// gather some basic hit information
+	// ------------------------------------------------------------------
+	const int primitiveIndex = optixGetPrimitiveIndex();
+	const gdt::vec3i index = sbtData.index[primitiveIndex];
+	const float u = optixGetTriangleBarycentrics().x;
+	const float v = optixGetTriangleBarycentrics().y;
+
+	// ------------------------------------------------------------------
+	// compute normal, using either shading normal (if avail), or
+	// geometry normal (fallback)
+	// ------------------------------------------------------------------
+	const gdt::vec3f& A = sbtData.vertex[index.x];
+	const gdt::vec3f& B = sbtData.vertex[index.y];
+	const gdt::vec3f& C = sbtData.vertex[index.z];
+	gdt::vec3f Ng = gdt::cross(B - A, C - A);
+	gdt::vec3f Ns = (sbtData.normal)
+		? ((1.f - u - v) * sbtData.normal[index.x]
+			+ u * sbtData.normal[index.y]
+			+ v * sbtData.normal[index.z])
+		: Ng;
+
+	// ------------------------------------------------------------------
+	// face-forward and normalize normals
+	// ------------------------------------------------------------------
+	const gdt::vec3f rayDir = optixGetWorldRayDirection();
+	const gdt::vec3f rayOrigin = optixGetWorldRayOrigin();
+
+	if (dot(rayDir, Ng) > 0.f) Ng = -Ng;
+	Ng = normalize(Ng);
+
+	if (dot(Ng, Ns) < 0.f)
+		Ns -= 2.f * dot(Ng, Ns) * Ng;
+	Ns = normalize(Ns);
+
+
+	// ------------------------------------------------------------------
+	// compute shadow
+	// ------------------------------------------------------------------
+	const gdt::vec3f surfPos
+		= (1.f - u - v) * sbtData.vertex[index.x]
+		+ u * sbtData.vertex[index.y]
+		+ v * sbtData.vertex[index.z];
+
+	uint32_t sonelIndex = (prd.index * prd.maxDepth) + prd.dataDepth;
+
+	Sonel& sonel = prd.sonels[sonelIndex];
+	float bounceProbality = prd.random.randomf();
+	if (bounceProbality > 0.90f || prd.depth + 1 == prd.maxDepth) {
+		// Absorbed
+		sonel.time = 0;
+		sonel.energy = 0;
+		return;
+	}
+
+	gdt::vec3f newRayDirection;
+	prd.distance += length(surfPos - rayOrigin);
+
+	prd.depth += 1;
+	if (bounceProbality < 0.45f) {
+		prd.dataDepth += 1;
+		sonel.energy = prd.energy;
+		sonel.position = surfPos;
+		sonel.time = prd.distance / params.sonelMapData->soundSpeed;
+		sonel.incidence = rayDir;
+
+		prd.random.randomVec3fHemi(Ns, newRayDirection);
+	}
+	else {
+		newRayDirection = Ns * 2 * dot(Ns, rayDir) - rayDir;
+	}
+
+	// the values we store the PRD pointer in:
+	uint32_t u0, u1;
+	packPointer(&prd, u0, u1);
+
+	optixTrace(
+		params.traversable,
+		surfPos,
+		newRayDirection,
+		1e-3f,      // tmin
+		1e20f,  // tmax
+		0.0f,       // rayTime
+		OptixVisibilityMask(255),
+		OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+		0,            // SBT offset
+		1,            // SBT stride
+		0,            // missSBTIndex 
+		u0, u1
+	);
+}
+
+//------------------------------------------------------------------------------
+// miss program that gets called for any ray that did not have a
+// valid intersection
+//
+// as with the anyhit/closest hit programs, in this example we only
+// need to have _some_ dummy function to set up a valid SBT
+// ------------------------------------------------------------------------------
+
+extern "C" __global__ void __miss__sonelRadiance() {
+	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+
+	uint32_t sonelIndex = (prd.index * prd.maxDepth) + prd.dataDepth;
+
+	Sonel& sonel = prd.sonels[sonelIndex];
+
+	sonel.time = 0;
+	sonel.energy = 0;
+}
+
+//------------------------------------------------------------------------------
+// ray gen program - the actual rendering happens in here
+//------------------------------------------------------------------------------
+extern "C" __global__ void __raygen__generateSonelMap() {
+	const int sonelIndex = optixGetLaunchIndex().x;
+	const int decibelIndex = optixGetLaunchIndex().y;
+	CudaRandom random = CudaRandom(sonelIndex, 0, 0);
+
+	SoundSource& soundSource = params.sonelMapData->soundSources[params.soundSourceIndex];
+	SoundFrequency& soundFrequency = soundSource.frequencies[params.frequencyIndex];
+
+	
+	float& decibels = soundFrequency.decibels[decibelIndex];
+	if (decibels > -0.000001 && decibels < 0.000001) {
+		return;
+	}
+
+	PerRayData prd = PerRayData(random, sonelIndex, decibels / soundFrequency.sonelAmount);
+	prd.maxDepth = soundFrequency.sonelMaxDepth;
+	prd.sonels = soundFrequency.sonels;
+	prd.distance = decibelIndex * params.sonelMapData->timestep * params.sonelMapData->soundSpeed;
+
+	// the values we store the PRD pointer in:
+	uint32_t u0, u1;
+	packPointer(&prd, u0, u1);
+
+	gdt::vec3f rayDirection;
+
+	prd.random.randomVec3fHemi(soundSource.direction, rayDirection);
+
+	optixTrace(
+		params.traversable,
+		soundSource.position,
+		rayDirection,
+		0.001f, // tmin
+		1e20f, // tmax
+		0.0f,  // rayTime
+		OptixVisibilityMask(255),
+		OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+		0,            // SBT offset
+		1,            // SBT stride
+		0,            // missSBTIndex 
+		u0, u1
+	);
+}

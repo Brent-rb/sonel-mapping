@@ -26,7 +26,8 @@ struct Scene {
 	Model* model;
 	Camera camera;
 	QuadLight light;
-	SoundSource soundSource;
+	std::vector<SoundSource> soundSources;
+	int frequencies;
 	float echogramDuration;
 	float soundSpeed;
 	float earSize;
@@ -48,10 +49,11 @@ extern "C" int main(int ac, char** av) {
 			scene.camera, 
 			scene.light, 
 			worldScale,
-			scene.soundSource,
+			scene.soundSources,
 			scene.echogramDuration,
 			scene.soundSpeed,
-			scene.earSize
+			scene.earSize,
+			scene.frequencies
 		);
 
 		window->run();
@@ -75,12 +77,42 @@ Scene loadSponza() {
 		/* up */vec3f(0.f,1.f,0.f)
 	};
 
-	SoundSource source = {
-		vec3f(-900, 150, model->bounds.center().z), // Location
-		normalize(vec3f(-1.0f, 0.0f, 0.0f)),
-		70.0f, // Decibels
-		4000, // Hertz
-	};
+	std::vector<SoundSource> soundSources;
+	std::vector<SoundFrequency> frequencies;
+
+	SoundFrequency frequency1(1000, 10000, 6), frequency2(2000, 10000, 6), frequency3(3000, 10000, 6), frequency4(4000, 10000, 6);
+	std::vector<float> decibels1, decibels2, decibels3, decibels4;
+	for (int i = 0; i < 10; i++) {
+		decibels2.push_back(0.0);
+		decibels3.push_back(0.0);
+		decibels3.push_back(0.0);
+		decibels4.push_back(0.0);
+		decibels4.push_back(0.0);
+		decibels4.push_back(0.0);
+		decibels4.push_back(0.0);
+	}
+
+	decibels1.push_back(70.0f);
+	decibels2.push_back(70.0f);
+	decibels3.push_back(70.0f);
+	decibels4.push_back(70.0f);
+
+	frequency1.setDecibels(decibels1);
+	frequency2.setDecibels(decibels2);
+	frequency3.setDecibels(decibels3);
+	frequency4.setDecibels(decibels4);
+
+	frequencies.push_back(frequency1);
+	frequencies.push_back(frequency2);
+	frequencies.push_back(frequency3);
+	frequencies.push_back(frequency4);
+
+	SoundSource source1;
+	source1.direction = normalize(vec3f(-1.0f, 0.0f, 0.0f));
+	source1.position = vec3f(-900, 150, model->bounds.center().z);
+	source1.setFrequencies(frequencies);
+
+	soundSources.push_back(source1);
 
 	// some simple, hard-coded light ... obviously, only works for sponza
 	const float light_size = 200.f;
@@ -96,7 +128,8 @@ Scene loadSponza() {
 		model,
 		camera,
 		light,
-		source,
+		soundSources,
+		4,
 		6.0f, // Seconds
 		343.0f, // m/s
 		0.3f // meter

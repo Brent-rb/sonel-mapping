@@ -17,10 +17,11 @@ public:
 		const Camera& camera,
 		const QuadLight& light,
 		const float worldScale,
-		SoundSource soundSource, 
-		float echogramDuration, 
-		float soundSpeed, 
-		float earSize
+		const std::vector<SoundSource>& soundSources,
+		float echogramDuration,
+		float soundSpeed,
+		float earSize,
+		int frequencySize
 	);
 
 	virtual void render() override;

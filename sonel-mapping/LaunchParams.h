@@ -18,23 +18,11 @@
 
 #include "gdt/math/vec.h"
 #include "optix7.h"
-#include "SoundSource.h"
-#include "Sonel.h"
 #include "OctTree.h"
+#include "Sonel.h"
 
 // for this simple example, we have a single ray type
-enum { RADIANCE_RAY_TYPE = 0, SHADOW_RAY_TYPE, RAY_TYPE_COUNT };
-
-struct TriangleMeshSBTData {
-	gdt::vec3f  color;
-	gdt::vec3f* vertex;
-	gdt::vec3f* normal;
-	gdt::vec2f* texcoord;
-	gdt::vec3i* index;
-
-	bool hasTexture;
-	cudaTextureObject_t texture;
-};
+enum { RADIANCE_RAY_TYPE = 0, RAY_TYPE_COUNT };
 
 struct LaunchParams {
 	struct {
@@ -49,26 +37,6 @@ struct LaunchParams {
 		gdt::vec3f horizontal;
 		gdt::vec3f vertical;
 	} camera;
-
-	struct {
-		gdt::vec3f origin;
-		gdt::vec3f du;
-		gdt::vec3f dv;
-		gdt::vec3f power;
-
-	} light;
-
-	struct {
-		SoundSource soundSource;
-		float echogramDuration;
-		float soundSpeed;
-		float earSize;
-
-		Sonel* sonelBuffer;
-		uint32_t sonelBufferSize;
-		uint32_t sonelAmount;
-		uint32_t sonelMaxDepth;
-	} sonelMap;
 
 	OctTree<Sonel>* octTree;
 

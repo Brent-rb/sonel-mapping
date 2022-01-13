@@ -19,9 +19,10 @@ find_package(OpenGL REQUIRED)
 include_directories(${OptiX_INCLUDE})
 
 cuda_compile_and_embed(embedded_ptx_code devicePrograms.cu)
+CUDA_COMPILE_AND_EMBED(embedded_mapper_code CudaSonelMapper.cu)
 
 add_executable(sonel-mapping
-  ${embedded_ptx_code}
+  ${embedded_mapper_code}
   optix7.h
 
   CUDABuffer.h
@@ -30,10 +31,7 @@ add_executable(sonel-mapping
   SonelMapper.cpp
   Model.h
   Model.cpp
-  Sonel.h
-  Sonel.cpp
-  SoundSource.h
-  SoundSource.cpp
+  TriangleMeshSbtData.h
   
   Camera.h
   CameraFrame.h
@@ -52,7 +50,15 @@ add_executable(sonel-mapping
   MainWindow.h
   MainWindow.cpp
 
+  CudaHelper.h
+  CudaRandom.h
+  CudaSonelMapperParams.h
+ 
+  Sonel.h
+  SoundSource.h
+  SonelMap.h
   OctTree.h
+
 
   main.cpp
   

@@ -1,19 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c">
+    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\cuda_compile_ptx_2_generated_CudaSonelMapper.cu.ptx_embedded.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SonelMapper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Model.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Sonel.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SoundSource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CameraFrame.cpp">
@@ -57,10 +51,7 @@
     <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Sonel.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SoundSource.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\TriangleMeshSbtData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Camera.h">
@@ -87,15 +78,33 @@
     <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\MainWindow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CudaHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CudaRandom.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CudaSonelMapperParams.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Sonel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SoundSource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\SonelMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\OctTree.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\devicePrograms.cu">
+    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CudaSonelMapper.cu">
       <Filter>Source Files</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\CMakeFiles\97a10d1f3cd6fe80bdc1c901800108b3\cuda_compile_ptx_1_generated_devicePrograms.cu.ptx_embedded.c.rule">
+    <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\CMakeFiles\97a10d1f3cd6fe80bdc1c901800108b3\cuda_compile_ptx_2_generated_CudaSonelMapper.cu.ptx_embedded.c.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
     <CustomBuild Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CMakeLists.txt" />

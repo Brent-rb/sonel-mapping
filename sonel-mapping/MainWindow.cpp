@@ -6,16 +6,20 @@ MainWindow::MainWindow(
 	const Camera& camera,
 	const QuadLight& light,
 	const float worldScale,
-	SoundSource soundSource, 
+	const std::vector<SoundSource>& soundSources, 
 	float echogramDuration, 
 	float soundSpeed, 
-	float earSize
-): GlfCameraWindow(title, camera.from, camera.at, camera.up, worldScale), sonelMapper(model, light, soundSource, echogramDuration, soundSpeed, earSize) {
-	sonelMapper.setCamera(camera);
+	float earSize,
+	int frequencySize
+): GlfCameraWindow(title, camera.from, camera.at, camera.up, worldScale), sonelMapper(model, soundSources, echogramDuration, soundSpeed, earSize, frequencySize) {
+	// sonelMapper.setCamera(camera);
+
+	sonelMapper.calculate();
 }
 
 void MainWindow::render() {
 	if (cameraFrame.modified) {
+		/*
 		sonelMapper.setCamera(
 			Camera{
 				cameraFrame.get_from(),
@@ -23,14 +27,15 @@ void MainWindow::render() {
 				cameraFrame.get_up()
 			}
 		);
+		*/
 		cameraFrame.modified = false;
 	}
 
-	sonelMapper.render();
+	
 }
 
 void MainWindow::draw() {
-	sonelMapper.downloadPixels(pixels.data());
+	// sonelMapper.downloadPixels(pixels.data());
 	if (fbTexture == 0)
 		glGenTextures(1, &fbTexture);
 
@@ -78,6 +83,6 @@ void MainWindow::draw() {
 
 void MainWindow::resize(const vec2i& newSize) {
 	fbSize = newSize;
-	sonelMapper.resize(newSize);
+	// sonelMapper.resize(newSize);
 	pixels.resize((uint64_t)newSize.x * newSize.y);
 }

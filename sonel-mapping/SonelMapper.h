@@ -22,26 +22,18 @@
 #include "Camera.h"
 #include "Model.h"
 #include "SoundSource.h"
+#include "SonelMap.h"
+#include "CudaSonelMapperParams.h"
+#include "OctTree.h"
 
 class SonelMapper {
 	public:
 		/*! constructor - performs all setup, including initializing
 		  optix, creates module, pipeline, programs, SBT, etc. */
-		SonelMapper(const Model* model, const QuadLight& light, SoundSource soundSource, float echogramDuration, float soundSpeed, float earSize);
+		SonelMapper(const Model* model, const std::vector<SoundSource>& soundSources, float echogramDuration, float soundSpeed, float earSize, uint32_t frequencySize);
 
 		/*! render one frame */
-		void render();
-
-		/*! resize frame buffer to given resolution */
-		void resize(const vec2i& newSize);
-
-		/*! download the rendered color buffer */
-		void downloadPixels(uint32_t h_pixels[]);
-		void downloadSonelMap(Sonel sonels[]);
-		void uploadSonelMapSnapshot(int index);
-
-		/*! set camera to render with */
-		void setCamera(const Camera& camera);
+		void calculate();
 
 	protected:
 		// ------------------------------------------------------------------
@@ -55,30 +47,13 @@ class SonelMapper {
 		  example, only for the primary GPU device) */
 		void createContext();
 
-		/*! creates the module that contains all the programs we are going
-		  to use. in this simple example, we use a single module from a
-		  single .cu file, using a single embedded ptx string */
-		void createRenderModule();
 		void createSonelModule();
 
-		/*! does all setup for the raygen program(s) we are going to use */
-		void createRenderRaygenPrograms();
 		void createSonelRaygenPrograms();
-
-		/*! does all setup for the miss program(s) we are going to use */
-		void createRenderMissPrograms();
 		void createSonelMissPrograms();
-
-		/*! does all setup for the hitgroup program(s) we are going to use */
-		void createRenderHitgroupPrograms();
 		void createSonelHitgroupPrograms();
-
-		/*! assembles the full pipeline of all programs */
-		void createRenderPipeline();
 		void createSonelPipeline();
 
-		/*! constructs the shader binding table */
-		void buildRenderSbt();
 		void buildSonelSbt();
 
 		/*! build an acceleration structure for the given triangle mesh */
@@ -88,13 +63,9 @@ class SonelMapper {
 		void createTextures();
 
 	private:
-		void buildRenderRaygenRecords();
 		void buildSonelRaygenRecords();
-		void buildRenderMissRecords();
 		void buildSonelMissRecords();
-		void buildRenderHitgroupRecords();
 		void buildSonelHitgroupRecords();
-		void initSonelBuffer();
 
 	protected:
 		/*! @{ CUDA device context and stream that optix pipeline will run
@@ -106,27 +77,6 @@ class SonelMapper {
 
 		//! the optix context that our pipeline will run in.
 		OptixDeviceContext optixContext;
-
-		/*! @{ the pipeline we're building */
-		OptixPipeline renderPipeline;
-		OptixPipelineCompileOptions renderPipelineCompileOptions = {};
-		OptixPipelineLinkOptions renderPipelineLinkOptions = {};
-		/*! @} */
-
-		/*! @{ the module that contains out device programs */
-		OptixModule renderModule;
-		OptixModuleCompileOptions renderModuleCompileOptions = {};
-		/* @} */
-
-		/*! vector of all our program(group)s, and the SBT built around
-			them */
-		std::vector<OptixProgramGroup> renderRaygenPgs;
-		CUDABuffer renderRaygenRecordsBuffer;
-		std::vector<OptixProgramGroup> renderMissPgs;
-		CUDABuffer renderMissRecordsBuffer;
-		std::vector<OptixProgramGroup> renderHitgroupPgs;
-		CUDABuffer renderHitgroupRecordsBuffer;
-		OptixShaderBindingTable renderSbt = {};
 
 		/*! @{ the pipeline we're building */
 		OptixPipeline sonelPipeline;
@@ -149,17 +99,7 @@ class SonelMapper {
 		CUDABuffer sonelHitgroupRecordsBuffer;
 		OptixShaderBindingTable sonelSbt = {};
 
-		/*! @{ our launch parameters, on the host, and the buffer to store
-			them on the device */
-		LaunchParams launchParams;
-		CUDABuffer launchParamsBuffer;
-		/*! @} */
-
-		CUDABuffer colorBuffer;
 		CUDABuffer sonelMapBuffer;
-
-		/*! the camera we are to render with. */
-		Camera lastSetCamera;
 
 		/*! the model we are going to trace rays against */
 		const Model* model;
@@ -179,8 +119,15 @@ class SonelMapper {
 		std::vector<cudaTextureObject_t> textureObjects;
 		/*! @} */
 
-		SonelMap* sonelMap;
-		int sonelMapIndex;
+		SonelMapData sonelMap;
+		SonelMapData* sonelMapDevicePtr;
 
+		CudaSonelMapperParams launchParams;
+		CudaSonelMapperParams* launchParamsDevicePtr;
+
+		uint32_t frequencyIndex;
+		uint32_t frequencySize;
 		bool hasCalculatedSonelMap = false;
+
+		std::vector<OctTree<Sonel>> octTrees;
 };

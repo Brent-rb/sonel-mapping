@@ -89,14 +89,14 @@ public:
 	}
 
 	bool insert(const T* item, const gdt::vec3f& position) {
-		/*printf("Inserting [%.2f, %.2f, %.2f] into [%.2f -> %.2f, %.2f -> %.2f, %.2f -> %.2f], current: %d, max: %d\n",
+		printf("Inserting [%.2f, %.2f, %.2f] into [%.2f -> %.2f, %.2f -> %.2f, %.2f -> %.2f], current: %d, max: %d\n",
 			position.x, position.y, position.z,
 			boundingBox.lowerBound.x, boundingBox.upperBound.x,
 			boundingBox.lowerBound.y, boundingBox.upperBound.y,
 			boundingBox.lowerBound.z, boundingBox.upperBound.z,
 			currentItems, maxItems
-		);*/
-
+		);
+		
 		if (!boundingBox.contains(position)) {
 			// printf("OctTree does not contain position, not inserting\n");
 			return false;
@@ -273,7 +273,7 @@ protected:
 		BoundingBox bb7 = BoundingBox(lb7, ub7);
 		BoundingBox bb8 = BoundingBox(lb8, ub8);
 
-		children = new OctTree[8];
+		children = new OctTree<T>[8];
 		children[0].init(bb1, maxItems);
 		children[1].init(bb2, maxItems);
 		children[2].init(bb3, maxItems);
@@ -287,6 +287,29 @@ protected:
 			OctTreeItem<T>& item = data[i];
 			assert(insertInChildren(&(item.data), item.position));
 		}
+
+		/*
+		for (int i = 0; i < 8; i++) {
+			OctTree<T>& child = children[i];
+			BoundingBox& childBox = child.boundingBox;
+			gdt::vec3f childDim = childBox.getDimensions();
+			gdt::vec3f dimDif = childBox.getDimensions() - halfDimensions;
+
+			if (fabsf(dimDif.x) > 0.001 || fabsf(dimDif.y) > 0.001 || fabsf(dimDif.z) > 0.001) {
+				printf("Discrepancy detected in child %d\n", i);
+				printf("Parent Info:\n");
+				printf("\tUpper [%.5f, %.5f, %.5f]\n", boundingBox.upperBound.x, boundingBox.upperBound.y, boundingBox.upperBound.z);
+				printf("\tLower [%.5f, %.5f, %.5f]\n", boundingBox.lowerBound.x, boundingBox.lowerBound.y, boundingBox.lowerBound.z);
+				printf("\tDim [%.5f, %.5f, %.5f]\n", dimensions.x, dimensions.y, dimensions.z);
+				printf("\tHalf [%.5f, %.5f, %.5f]\n", halfDimensions.x, halfDimensions.y, halfDimensions.z);
+
+				printf("Child Info:\n");
+				printf("\tUpper [%.5f, %.5f, %.5f]\n", childBox.upperBound.x, childBox.upperBound.y, childBox.upperBound.z);
+				printf("\tLower [%.5f, %.5f, %.5f]\n", childBox.lowerBound.x, childBox.lowerBound.y, childBox.lowerBound.z);
+				printf("\tDim [%.5f, %.5f, %.5f]\n", childDim.x, childDim.y, childDim.z);
+			}
+		}
+		*/
 
 		delete[] data;
 		data = nullptr;
