@@ -4,6 +4,7 @@
 #include "OctTree.h"
 #include "TriangleMeshSbtData.h"
 #include "CudaHelper.h"
+#include <chrono>
 
 extern "C" char embedded_visualizer_code[];
 
@@ -42,8 +43,6 @@ SonelMapVisualizer::SonelMapVisualizer(
 }
 
 void SonelMapVisualizer::init() {
-	launchParams.octTree = nullptr;
-
 	std::cout << "[SonelMapVisualizer] Creating render module." << std::endl;
 	createRenderModule();
 
@@ -393,10 +392,10 @@ void SonelMapVisualizer::render() {
 	}
 	
 	uploadSonelMapSnapshot();
-	buildRenderSbt();
 	launchParams.traversable = cudaScene.getInstanceTraversable();
 	launchParamsBuffer.upload(&launchParams, 1);
 
+	auto start = std::chrono::high_resolution_clock::now();
 	optixCheck(
 		optixLaunch(
 			/*! pipeline we're launching launch: */
@@ -422,6 +421,11 @@ void SonelMapVisualizer::render() {
 	// want to use streams and double-buffering, but for this simple
 	// example, this will have to do)
 	cudaSyncCheck("SonelMapVisualizer", "Failed to synchronize.");
+
+	auto end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+	printf("[SonelMapVisualizer] Rendering frame took %lf ms\n", duration.count() / 1000.0);
 }
 
 /*! set camera to render with */
@@ -457,31 +461,21 @@ void SonelMapVisualizer::resize(const vec2i& newSize) {
 }
 
 void SonelMapVisualizer::uploadSonelMapSnapshot() {
-	printf("[SonelMapVisualizer] Uploading index %d\n", timestep);
+	printf("[SonelMapVisualizer] Uploading Sonel index %d\n", timestep);
 
-	if (sonelMap == nullptr) {
-		launchParams.octTree = nullptr;
-		return;
-	}
-
-	if (launchParams.octTree != nullptr) {
-		OctTree<Sonel>::clear(launchParams.octTree);
-		cudaFree(launchParams.octTree);
-		launchParams.octTree = nullptr;
-	}
-
-	OctTree<Sonel>& octTree = (*sonelMap)[timestep];
-	OctTree<Sonel>* deviceOctTree = octTree.upload();
-
-	launchParams.octTree = deviceOctTree;
-
+	auto start = std::chrono::high_resolution_clock::now();
 	if (sonelArray != nullptr) {
 		std::vector<Sonel>& sonels = (*sonelArray)[timestep];
 		if (sonels.size() > 0) {
 			cudaScene.setSonels(&sonels, 5.0f);
 			cudaScene.build();
+			buildRenderHitgroupRecords();
 		}
 	}
+	auto end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+	printf("[SonelMapVisualizer] Uploading took %lf ms\n", duration.count() / 1000.0);
 
 	timestep++;
 	if (timestep == sonelMap->size()) {

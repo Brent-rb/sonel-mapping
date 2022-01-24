@@ -84,7 +84,7 @@ Scene loadSponza() {
 	std::vector<SoundFrequency> frequencies1;
 	std::vector<SoundFrequency> frequencies2;
 
-	SoundFrequency frequency1(1000, 100000, 6), frequency2(2000, 100000, 6), frequency3(3000, 100000, 6), frequency4(4000, 100000, 6);
+	SoundFrequency frequency1(1000, 1000000, 6), frequency2(2000, 1000000, 6), frequency3(3000, 1000000, 6), frequency4(4000, 1000000, 6);
 	std::vector<float> decibels1, decibels2, decibels3, decibels4;
 	for (int i = 0; i < 10; i++) {
 		decibels2.push_back(0.0);

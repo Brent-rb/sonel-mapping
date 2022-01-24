@@ -27,7 +27,6 @@ struct LaunchParams {
 	struct {
 		uint32_t* colorBuffer;
 		gdt::vec2i size;
-		int accumID{ 0 };
 	} frame;
 
 	struct {
@@ -37,6 +36,5 @@ struct LaunchParams {
 		gdt::vec3f vertical;
 	} camera;
 
-	OctTree<Sonel>* octTree;
 	OptixTraversableHandle traversable;
 };

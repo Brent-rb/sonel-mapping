@@ -203,18 +203,17 @@ extern "C" __global__ void __raygen__renderFrame() {
 	const int screenY = optixGetLaunchIndex().y;
 	const int frameX = launchParams.frame.size.x;
 	const int frameY = launchParams.frame.size.y;
-	const int accumId = launchParams.frame.accumID;
 	const auto& camera = launchParams.camera;
 
 	const int randX = (screenX);
 	const int randY = (screenY * frameX);
 
 	curandState_t curandState;
-	curand_init((randX + randY) * accumId, 0, 0, &curandState);
+	curand_init((randX + randY), 0, 0, &curandState);
 	PerRayData prd;
 	prd.energy = 0;
 	prd.hits = 0;
-	prd.random.init((randX + randY) * accumId, 0, 0);
+	prd.random.init((randX + randY), 0, 0);
 	prd.pixelColor = vec3f(0.f);
 
 	// the values we store the PRD pointer in:
