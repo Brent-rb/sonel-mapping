@@ -7,7 +7,7 @@
 
 class SonelManager {
 public:
-	SonelManager(const Model* model, SonelMapperConfig sonelMapperConfig);
+	SonelManager(Model* model, SonelMapperConfig sonelMapperConfig);
 	~SonelManager();
 
 	void calculate();

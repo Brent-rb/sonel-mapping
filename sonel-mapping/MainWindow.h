@@ -13,7 +13,7 @@ class MainWindow: public GlfCameraWindow {
 public:
 	MainWindow(
 		const std::string& title,
-		const Model* model,
+		Model* model,
 		const Camera& camera,
 		const float worldScale,
 		SonelMapperConfig config

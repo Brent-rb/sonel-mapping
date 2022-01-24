@@ -1,7 +1,7 @@
 #pragma once
 
 #include "gdt/math/vec.h"
-#include "optix7.h"
+#include "CudaHelper.h"
 
 template <typename T>
 struct OctTreeItem {
@@ -191,23 +191,48 @@ public:
 			OctTreeItem<T>* octTreeData;
 
 			// Allocate space for the data array
-			CUDA_CHECK(cudaMalloc((void**)&octTreeData, maxItems * sizeof(OctTreeItem<T>)));
+			cudaCheck(
+				cudaMalloc((void**)&octTreeData, maxItems * sizeof(OctTreeItem<T>)),
+				"OctTree",
+				"Failed to allocate item array."
+			);
+			
 			// Copy data
-			CUDA_CHECK(cudaMemcpy(octTreeData, data, currentItems * sizeof(OctTreeItem<T>), cudaMemcpyHostToDevice));
+			cudaCheck(
+				cudaMemcpy(octTreeData, data, currentItems * sizeof(OctTreeItem<T>), cudaMemcpyHostToDevice),
+				"OctTree",
+				"Failed to copy over data."
+			);
 
 			// Copy pointer over
-			CUDA_CHECK(cudaMemcpy(&(deviceOctTree->data), &octTreeData, sizeof(OctTreeItem<T>*), cudaMemcpyHostToDevice));
+			cudaCheck(
+				cudaMemcpy(&(deviceOctTree->data), &octTreeData, sizeof(OctTreeItem<T>*), cudaMemcpyHostToDevice),
+				"OctTree",
+				"Failed to copy over pointer of data array."
+			);
 		}
 		else {
 			OctTree<T>* octTreeChildren;
 
 			// Allocate space for the children array
-			CUDA_CHECK(cudaMalloc((void**)&octTreeChildren, 8 * sizeof(OctTree<T>)));
+			cudaCheck(
+				cudaMalloc((void**)&octTreeChildren, 8 * sizeof(OctTree<T>)),
+				"OctTree",
+				"Failed to allocate children."
+			);
 			// Copy children
-			CUDA_CHECK(cudaMemcpy(octTreeChildren, children, 8 * sizeof(OctTree<T>), cudaMemcpyHostToDevice));
+			cudaCheck(
+				cudaMemcpy(octTreeChildren, children, 8 * sizeof(OctTree<T>), cudaMemcpyHostToDevice),
+				"OctTree",
+				"Failed to copy over children."
+			);
 
 			// Copy pointer over
-			CUDA_CHECK(cudaMemcpy(&(deviceOctTree->children), &octTreeChildren, sizeof(OctTree<T>*), cudaMemcpyHostToDevice));
+			cudaCheck(
+				cudaMemcpy(&(deviceOctTree->children), &octTreeChildren, sizeof(OctTree<T>*), cudaMemcpyHostToDevice),
+				"OctTree",
+				"Failed to copy over pointer of children."
+			);
 			
 
 			for (int i = 0; i < 8; i++) {
@@ -218,15 +243,27 @@ public:
 
 	static void clear(OctTree<T>* devicePtr) {
 		OctTree<T> octTree;
-		CUDA_CHECK(cudaMemcpy(&octTree, devicePtr, sizeof(OctTree<T>), cudaMemcpyDeviceToHost));
+		cudaCheck(
+			cudaMemcpy(&octTree, devicePtr, sizeof(OctTree<T>), cudaMemcpyDeviceToHost),
+			"OctTree",
+			"Failed to copy over octree from device."
+		);
 
 		if (octTree.children != nullptr) {
 			for (int i = 0; i < 8; i++) {
 				clear(&(octTree.children[i]));
 			}
-			CUDA_CHECK(cudaFree(octTree.children));
+			cudaCheck(
+				cudaFree(octTree.children),
+				"OctTree",
+				"Failed to free device children array."
+			);
 		}
-		CUDA_CHECK(cudaFree(octTree.data));
+		cudaCheck(
+			cudaFree(octTree.data),
+			"OctTree",
+			"Failed to free device data array."
+		);
 	}
 
 protected:
@@ -288,29 +325,6 @@ protected:
 			OctTreeItem<T>& item = data[i];
 			assert(insertInChildren(&(item.data), item.position));
 		}
-
-		/*
-		for (int i = 0; i < 8; i++) {
-			OctTree<T>& child = children[i];
-			BoundingBox& childBox = child.boundingBox;
-			gdt::vec3f childDim = childBox.getDimensions();
-			gdt::vec3f dimDif = childBox.getDimensions() - halfDimensions;
-
-			if (fabsf(dimDif.x) > 0.001 || fabsf(dimDif.y) > 0.001 || fabsf(dimDif.z) > 0.001) {
-				printf("Discrepancy detected in child %d\n", i);
-				printf("Parent Info:\n");
-				printf("\tUpper [%.5f, %.5f, %.5f]\n", boundingBox.upperBound.x, boundingBox.upperBound.y, boundingBox.upperBound.z);
-				printf("\tLower [%.5f, %.5f, %.5f]\n", boundingBox.lowerBound.x, boundingBox.lowerBound.y, boundingBox.lowerBound.z);
-				printf("\tDim [%.5f, %.5f, %.5f]\n", dimensions.x, dimensions.y, dimensions.z);
-				printf("\tHalf [%.5f, %.5f, %.5f]\n", halfDimensions.x, halfDimensions.y, halfDimensions.z);
-
-				printf("Child Info:\n");
-				printf("\tUpper [%.5f, %.5f, %.5f]\n", childBox.upperBound.x, childBox.upperBound.y, childBox.upperBound.z);
-				printf("\tLower [%.5f, %.5f, %.5f]\n", childBox.lowerBound.x, childBox.lowerBound.y, childBox.lowerBound.z);
-				printf("\tDim [%.5f, %.5f, %.5f]\n", childDim.x, childDim.y, childDim.z);
-			}
-		}
-		*/
 
 		delete[] data;
 		data = nullptr;

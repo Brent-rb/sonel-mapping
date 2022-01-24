@@ -17,7 +17,6 @@
 #pragma once
 
 #include "gdt/math/vec.h"
-#include "optix7.h"
 #include "OctTree.h"
 #include "Sonel.h"
 

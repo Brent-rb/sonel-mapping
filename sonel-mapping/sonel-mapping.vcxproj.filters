@@ -51,9 +51,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\optix7.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -87,7 +84,7 @@
     <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\TriangleMeshSbtData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CUDABuffer.h">
+    <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CudaBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\brent\Documents\Repositories\sonel-mapping\sonel-mapping\CudaHelper.h">

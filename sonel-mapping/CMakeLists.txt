@@ -24,7 +24,6 @@ CUDA_COMPILE_AND_EMBED(embedded_mapper_code CudaSonelMapper.cu)
 add_executable(sonel-mapping
   ${embedded_visualizer_code}
   ${embedded_mapper_code}
-  optix7.h
   
   Camera.h
   CameraFrame.h
@@ -48,7 +47,7 @@ add_executable(sonel-mapping
   Model.cpp
   TriangleMeshSbtData.h
 
-  CUDABuffer.h
+  CudaBuffer.h
   CudaHelper.h
   CudaRandom.h
   CudaSonelMapperParams.h

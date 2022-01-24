@@ -1,7 +1,7 @@
 #pragma once
 
 // our own classes, partly shared between host and device
-#include "CUDABuffer.h"
+#include "CudaBuffer.h"
 #include "LaunchParams.h"
 #include "Camera.h"
 #include "Model.h"
@@ -12,10 +12,13 @@ class SonelMapVisualizer {
 public:
 	SonelMapVisualizer(
 		const OptixSetup& optixSetup,
-		const OptixScene& cudaScene
+		OptixScene& cudaScene
 	);
 
+	void init();
+
 	void setSonelMap(std::vector<OctTree<Sonel>>* sonelMap);
+	void setSonelArray(std::vector<std::vector<Sonel>>* sonelArray);
 
 	/*! render one frame */
 	void render();
@@ -46,8 +49,9 @@ private:
 
 protected:
 	const OptixSetup& optixSetup;
-	const OptixScene& cudaScene;
+	OptixScene& cudaScene;
 	std::vector<OctTree<Sonel>>* sonelMap;
+	std::vector<std::vector<Sonel>>* sonelArray;
 
 	OptixPipeline renderPipeline;
 	OptixPipelineCompileOptions renderPipelineCompileOptions = {};
@@ -57,18 +61,18 @@ protected:
 	OptixModuleCompileOptions renderModuleCompileOptions = {};
 
 	std::vector<OptixProgramGroup> renderRaygenPgs;
-	CUDABuffer renderRaygenRecordsBuffer;
+	CudaBuffer renderRaygenRecordsBuffer;
 	std::vector<OptixProgramGroup> renderMissPgs;
-	CUDABuffer renderMissRecordsBuffer;
+	CudaBuffer renderMissRecordsBuffer;
 	std::vector<OptixProgramGroup> renderHitgroupPgs;
-	CUDABuffer renderHitgroupRecordsBuffer;
+	CudaBuffer renderHitgroupRecordsBuffer;
 	OptixShaderBindingTable renderSbt = {};
 
 	LaunchParams launchParams;
-	CUDABuffer launchParamsBuffer;
+	CudaBuffer launchParamsBuffer;
 
-	CUDABuffer colorBuffer;
-	CUDABuffer sonelMapBuffer;
+	CudaBuffer colorBuffer;
+	CudaBuffer sonelMapBuffer;
 
 	Camera lastSetCamera;
 

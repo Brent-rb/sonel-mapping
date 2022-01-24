@@ -1,35 +1,122 @@
 #include "OptixScene.h"
 #include "CudaHelper.h"
 
-OptixScene::OptixScene(const OptixDeviceContext& optixContext, const Model* model): model(model), meshSize(model->meshes.size()), traversableHandle(0) {
-	build(optixContext);
+OptixScene::OptixScene(const OptixDeviceContext& optixContext): 
+	optixContext(optixContext), 
+	model(nullptr), sonels(nullptr), 
+	meshSize(0), sonelSize(0), 
+	triangleHandle(0), aabbHandle(0), instanceHandle(0) {
+
+	void* instanceBuffer;
+	cudaMalloc(&instanceBuffer, sizeof(OptixInstance) * 2);
+	optixInstances.resize(2);
+	optixInstanceBuffer = reinterpret_cast<CUdeviceptr>(instanceBuffer);
+
+	float matrix[12] = { 1, 0, 0, 0,
+	                     0, 1, 0, 0,
+	                     0, 0, 1, 0 };
+	optixInstances[0] = {};
+	optixInstances[0].flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
+	optixInstances[0].instanceId = 0u;
+	optixInstances[0].sbtOffset = 0u;
+	optixInstances[0].visibilityMask = 255u;
+
+	optixInstances[1] = {};
+	optixInstances[1].flags = OPTIX_INSTANCE_FLAG_NONE;
+	optixInstances[1].instanceId = 1u;
+	optixInstances[0].sbtOffset = 0u;
+	optixInstances[1].visibilityMask = 255u;
+
+	memcpy(optixInstances[0].transform, matrix, sizeof(float) * 12);
+	memcpy(optixInstances[1].transform, matrix, sizeof(float) * 12);
 }
 
 OptixScene::~OptixScene() {
-	for (int meshId = 0; meshId < meshSize; meshId++) {
-		// upload the model to the device: the builder
-		TriangleMesh& mesh = *model->meshes[meshId];
+	clear();
 
-		vertexBuffer[meshId].free();
-		indexBuffer[meshId].free();
+	cudaFree(reinterpret_cast<void*>(optixInstanceBuffer));
+}
 
-		if (!mesh.normal.empty()) {
-			normalBuffer[meshId].free();
-		}
-		if (!mesh.texcoord.empty()) {
-			texcoordBuffer[meshId].free();
-		}
+void OptixScene::clear() {
+	clearMeshBuffers();
+	clearSonelBuffers();
+}
+
+void OptixScene::build() {
+	cudaSyncCheck("OptixScene", "Sync failed before build.");
+
+
+	if (meshBuffersInvalid) {
+		buildTriangles();
+		meshBuffersInvalid = false;
+	}
+	if (sonelBuffersInvalid) {
+		buildSonels();
+		sonelBuffersInvalid = false;
 	}
 
-	accelBuffer.free();
+	buildInstanceStructure();
 }
 
-const OptixTraversableHandle& OptixScene::getTraversableHandle() const {
-	return traversableHandle;
+void OptixScene::buildTriangles() {
+	prepareTriangleBuffers();
+	buildTriangleInputs();
+	buildTextures();
+	buildTriangleAccelStructure();
 }
 
-const Model* OptixScene::getModel() const {
+void OptixScene::buildSonels() {
+	prepareSonelBuffers();
+	buildSonelAabbInputs();
+	buildSonelAabbAccelStructure();
+}
+
+uint32_t OptixScene::getSonelSize() {
+	return sonelSize;
+}
+
+void OptixScene::setModel(Model* model) {
+	clearMeshBuffers();
+
+	this->model = model;
+	meshSize = model->meshes.size();
+
+	meshBuffersInvalid = true;
+}
+
+Model* OptixScene::getModel() const {
 	return model;
+}
+
+void OptixScene::setSonels(std::vector<Sonel>* sonels, float searchRadius) {
+	clearSonelBuffers();
+	printf("Setting sonels %d\n", sonels->size());
+
+	this->sonels = sonels;
+	sonelSize = sonels->size();
+	radius = searchRadius;
+
+	sonelBuffersInvalid = true;
+}
+
+std::vector<Sonel>* OptixScene::getSonels() const {
+	return sonels;
+}
+
+CUdeviceptr OptixScene::getSonelDevicePointer(int sonelIndex) const {
+	return sonelBuffer.getCuDevicePointer() + (sonelIndex * sizeof(Sonel));
+}
+
+const OptixTraversableHandle& OptixScene::getGeoTraversable() const {
+	return triangleHandle;
+}
+
+const OptixTraversableHandle& OptixScene::getAabbTraversable() const {
+	return aabbHandle;
+}
+
+const OptixTraversableHandle& OptixScene::getInstanceTraversable() const {
+	return instanceHandle;
 }
 
 void OptixScene::fill(const uint32_t meshIndex, TriangleMeshSbtData& triangleData) const {
@@ -46,66 +133,76 @@ void OptixScene::fill(const uint32_t meshIndex, TriangleMeshSbtData& triangleDat
 	}
 
 	// Load vector data
-	triangleData.index = (vec3i*)indexBuffer[meshIndex].d_pointer();
-	triangleData.vertex = (vec3f*)vertexBuffer[meshIndex].d_pointer();
-	triangleData.normal = (vec3f*)normalBuffer[meshIndex].d_pointer();
-	triangleData.texcoord = (vec2f*)texcoordBuffer[meshIndex].d_pointer();
+	triangleData.index = (vec3i*)indexBuffer[meshIndex].getCuDevicePointer();
+	triangleData.vertex = (vec3f*)vertexBuffer[meshIndex].getCuDevicePointer();
+	triangleData.normal = (vec3f*)normalBuffer[meshIndex].getCuDevicePointer();
+	triangleData.texcoord = (vec2f*)texcoordBuffer[meshIndex].getCuDevicePointer();
 }
 
-void OptixScene::build(const OptixDeviceContext& optixContext) {
-	meshSize = model->meshes.size();
+void OptixScene::clearMeshBuffers() {
+	printf("Clear mesh buffers\n");
+	for (int meshId = 0; meshId < meshSize; meshId++) {
+		// upload the model to the device: the builder
+		TriangleMesh& mesh = *model->meshes[meshId];
 
-	OptixTraversableHandle accelHandle{ 0 };
+		vertexBuffer[meshId].tryFree();
+		indexBuffer[meshId].tryFree();
 
-	// Triangle inputs
-	std::vector<OptixBuildInput> triangleInputs;
-	std::vector<uint32_t> triangleInputFlags;
-	std::vector<CUdeviceptr> cudaVertices;
-	std::vector<CUdeviceptr> cudaIndices;
+		if (!mesh.normal.empty()) {
+			normalBuffer[meshId].tryFree();
+		}
+		if (!mesh.texcoord.empty()) {
+			texcoordBuffer[meshId].tryFree();
+		}
+	}
 
-	prepareBuffers(triangleInputs, triangleInputFlags, cudaVertices, cudaIndices);
-	buildTriangleInput(triangleInputs, triangleInputFlags, cudaVertices, cudaIndices);
-	buildAccelStructure(optixContext, triangleInputs, accelHandle);
-	buildTextures();
-
-	this->traversableHandle = accelHandle;
+	triangleAccelBuffer.tryFree();
 }
 
-void OptixScene::prepareBuffers(
-	std::vector<OptixBuildInput>& triangleInputs,
-	std::vector<uint32_t>& triangleInputFlags,
-	std::vector<CUdeviceptr>& cudaVertices,
-	std::vector<CUdeviceptr>& cudaIndices
-) {
+void OptixScene::clearSonelBuffers() {
+	aabbAccelBuffer.tryFree();
+	sonelBuffer.tryFree();
+
+	for (int sonelId = 0; sonelId < sonelSize; sonelId++) {
+		sonelAabbBuffer[sonelId].tryFree();
+	}
+}
+
+void OptixScene::prepareTriangleBuffers() {
+	triangleInputs.resize(meshSize);
+	triangleInputFlags.resize(meshSize);
+
 	vertexBuffer.resize(meshSize);
 	normalBuffer.resize(meshSize);
 	texcoordBuffer.resize(meshSize);
 	indexBuffer.resize(meshSize);
 
-	triangleInputs.resize(meshSize);
-	triangleInputFlags.resize(meshSize);
 	cudaVertices.resize(meshSize);
 	cudaIndices.resize(meshSize);
 }
 
-void OptixScene::buildTriangleInput(
-	std::vector<OptixBuildInput>& triangleInputs, 
-	std::vector<uint32_t>& triangleInputFlags, 
-	std::vector<CUdeviceptr>& cudaVertices, 
-	std::vector<CUdeviceptr>& cudaIndices
-) {	
+void OptixScene::prepareSonelBuffers() {
+	aabbInputs.resize(sonelSize);
+	aabbInputFlags.resize(sonelSize);
+
+	sonelAabbBuffer.resize(sonelSize);
+	sonelBuffer.resize(sonelSize);
+	cudaAabbs.resize(sonelSize);
+}
+
+void OptixScene::buildTriangleInputs() {	
 	for (int meshId = 0; meshId < meshSize; meshId++) {
 		// upload the model to the device: the builder
 		TriangleMesh& mesh = *model->meshes[meshId];
 
-		vertexBuffer[meshId].alloc_and_upload(mesh.vertex);
-		indexBuffer[meshId].alloc_and_upload(mesh.index);
+		vertexBuffer[meshId].allocAndUpload(mesh.vertex);
+		indexBuffer[meshId].allocAndUpload(mesh.index);
 
 		if (!mesh.normal.empty()) {
-			normalBuffer[meshId].alloc_and_upload(mesh.normal);
+			normalBuffer[meshId].allocAndUpload(mesh.normal);
 		}
 		if (!mesh.texcoord.empty()) {
-			texcoordBuffer[meshId].alloc_and_upload(mesh.texcoord);
+			texcoordBuffer[meshId].allocAndUpload(mesh.texcoord);
 		}
 
 		triangleInputs[meshId] = {};
@@ -113,8 +210,8 @@ void OptixScene::buildTriangleInput(
 
 		// create local variables, because we need a *pointer* to the
 		// device pointers
-		cudaVertices[meshId] = vertexBuffer[meshId].d_pointer();
-		cudaIndices[meshId] = indexBuffer[meshId].d_pointer();
+		cudaVertices[meshId] = vertexBuffer[meshId].getCuDevicePointer();
+		cudaIndices[meshId] = indexBuffer[meshId].getCuDevicePointer();
 
 		triangleInputs[meshId].triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
 		triangleInputs[meshId].triangleArray.vertexStrideInBytes = sizeof(vec3f);
@@ -126,7 +223,7 @@ void OptixScene::buildTriangleInput(
 		triangleInputs[meshId].triangleArray.numIndexTriplets = (int)mesh.index.size();
 		triangleInputs[meshId].triangleArray.indexBuffer = cudaIndices[meshId];
 
-		triangleInputFlags[meshId] = 0;
+		triangleInputFlags[meshId] = OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
 
 		// in this example we have one SBT entry, and no per-primitive
 		// materials:
@@ -138,88 +235,9 @@ void OptixScene::buildTriangleInput(
 	}
 }
 
-void OptixScene::buildAccelStructure(
-	const OptixDeviceContext& optixContext,
-	const std::vector<OptixBuildInput>& triangleInputs,
-	OptixTraversableHandle& accelHandle
-) {
-	OptixAccelBufferSizes bufferSizes;
-
-	// BLAS Setup
-	OptixAccelBuildOptions accelOptions = {};
-	accelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
-	accelOptions.motionOptions.numKeys = 1;
-	accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-	optixCheck(
-		optixAccelComputeMemoryUsage(
-			optixContext,
-			&accelOptions,
-			triangleInputs.data(),
-			(int)model->meshes.size(), // num_build_inputs
-			&bufferSizes
-		),
-		"CudaScene",
-		"Failed to compute acceleration structure memory usage."
-	);
-
-	CUDABuffer compactedSizeBuffer;
-	compactedSizeBuffer.alloc(sizeof(uint64_t));
-
-	OptixAccelEmitDesc emitDesc;
-	emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-	emitDesc.result = compactedSizeBuffer.d_pointer();
-
-	CUDABuffer tempBuffer;
-	tempBuffer.alloc(bufferSizes.tempSizeInBytes);
-
-	CUDABuffer outputBuffer;
-	outputBuffer.alloc(bufferSizes.outputSizeInBytes);
-
-	optixCheck(
-		optixAccelBuild(
-			optixContext,
-			0,
-			&accelOptions,
-			triangleInputs.data(), (int)meshSize,
-			tempBuffer.d_pointer(), tempBuffer.sizeInBytes,
-			outputBuffer.d_pointer(), outputBuffer.sizeInBytes,
-
-			&accelHandle,
-			&emitDesc, 1
-		),
-		"CudaScene",
-		"Failed to build acceleration structure."
-	);
-
-	CUDA_SYNC_CHECK();
-
-	// Compact
-	uint64_t compactedSize;
-	compactedSizeBuffer.download(&compactedSize, 1);
-
-	accelBuffer.alloc(compactedSize);
-	optixCheck(
-		optixAccelCompact(
-			optixContext,
-			0, 
-			accelHandle, 
-			accelBuffer.d_pointer(), accelBuffer.sizeInBytes, 
-			&accelHandle
-		), 
-		"CudaScene",
-		"Failed to compact acceleration structure."
-	);
-	cudaSyncCheck("CudaScene", "Failed to synchronize after acceleration structure build.");
-
-	// Clean up
-	outputBuffer.free();
-	tempBuffer.free();
-	compactedSizeBuffer.free();
-}
 
 void OptixScene::buildTextures() {
-	int numTextures = (int) model->textures.size();
+	int numTextures = (int)model->textures.size();
 
 	textureArrays.resize(numTextures);
 	textureObjects.resize(numTextures);
@@ -274,4 +292,200 @@ void OptixScene::buildTextures() {
 		);
 		textureObjects[textureId] = cuda_tex;
 	}
+}
+
+void OptixScene::buildSonelAabbInputs() {
+	if (sonelSize == 0) {
+		return;
+	}
+
+	float radius2 = radius / 2.0f;
+
+	prepareSonelBuffers();
+	sonelBuffer.allocAndUpload(*sonels);
+
+	for (int sonelId = 0; sonelId < sonelSize; sonelId++) {
+		// upload the model to the device: the builder
+		const Sonel& sonel = (*sonels)[sonelId];
+
+		gdt::vec3f min = sonel.position - radius;
+		gdt::vec3f max = sonel.position + radius;
+
+		OptixAabb tempAabb = {
+			min.x,
+			min.y,
+			min.z,
+			max.x,
+			max.y,
+			max.z
+		};
+
+		std::vector<OptixAabb> tempAabbs = { tempAabb };
+
+		sonelAabbBuffer[sonelId].allocAndUpload(tempAabbs);
+		cudaAabbs[sonelId] = sonelAabbBuffer[sonelId].getCuDevicePointer();
+
+		aabbInputs[sonelId] = {};
+		aabbInputs[sonelId].type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+
+		aabbInputs[sonelId].customPrimitiveArray.aabbBuffers = &cudaAabbs[sonelId];
+		aabbInputs[sonelId].customPrimitiveArray.strideInBytes = sizeof(OptixAabb);
+		aabbInputs[sonelId].customPrimitiveArray.numPrimitives = 1;
+
+		aabbInputFlags[sonelId] = OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL;
+
+		aabbInputs[sonelId].customPrimitiveArray.flags = &aabbInputFlags[sonelId];
+		aabbInputs[sonelId].customPrimitiveArray.numSbtRecords = 1;
+		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetBuffer = 0;
+		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetSizeInBytes = 0;
+		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
+	}
+}
+
+void OptixScene::buildTriangleAccelStructure() {
+	this->triangleHandle = buildTraversable(triangleInputs, triangleAccelBuffer);
+
+	optixInstances[0].traversableHandle = this->triangleHandle;
+	cudaMemcpy(reinterpret_cast<void*>(optixInstanceBuffer), optixInstances.data(), 2, cudaMemcpyHostToDevice);
+}
+
+void OptixScene::buildSonelAabbAccelStructure() {
+	if (sonelSize == 0) {
+		return;
+	}
+
+	this->aabbHandle = buildTraversable(aabbInputs, aabbAccelBuffer);
+	optixInstances[1].traversableHandle = this->triangleHandle;
+
+	cudaMemcpy(reinterpret_cast<void*>(optixInstanceBuffer), optixInstances.data(), 2, cudaMemcpyHostToDevice);
+}
+
+void OptixScene::buildInstanceStructure() {
+	/*
+	uint32_t instanceSize = 1;
+	printf("Instance size: %d\n", instanceSize);
+
+	OptixBuildInput instanceBuildInput{};
+	instanceBuildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+	instanceBuildInput.instanceArray.instances = optixInstanceBuffer;
+	instanceBuildInput.instanceArray.numInstances = instanceSize;
+
+	std::vector<OptixBuildInput> buildInputs = { instanceBuildInput };
+	
+	instanceHandle = buildTraversable(buildInputs, instanceAccelBuffer);
+	*/
+	float transform[12] = { 1,0,0,3,0,1,0,0,0,0,1,0 };
+
+	OptixInstance instances[2] = { {}, {} };
+	memcpy(instances[0].transform, transform, sizeof(float) * 12);
+	instances[0].instanceId = 0;
+	instances[0].visibilityMask = 255;
+	instances[0].sbtOffset = 0;
+	instances[0].flags = OPTIX_INSTANCE_FLAG_NONE;
+	instances[0].traversableHandle = triangleHandle;
+
+	memcpy(instances[1].transform, transform, sizeof(float) * 12);
+	instances[1].instanceId = 1;
+	instances[1].visibilityMask = 255;
+	instances[1].sbtOffset = meshSize;
+	instances[1].flags = OPTIX_INSTANCE_FLAG_NONE;
+	instances[1].traversableHandle = aabbHandle;
+
+
+	void* d_instance;
+
+	cudaMalloc(&d_instance, sizeof(OptixInstance) * 2);
+
+
+	cudaMemcpy(d_instance, instances, sizeof(OptixInstance) * 2, cudaMemcpyHostToDevice);
+
+	std::vector<OptixBuildInput> buildInputs;
+	buildInputs.resize(1);
+	OptixBuildInput& buildInput = buildInputs[0];
+	buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+	buildInput.instanceArray.instances = reinterpret_cast<CUdeviceptr>(d_instance);
+	buildInput.instanceArray.numInstances = 2;
+
+	instanceHandle = buildTraversable(buildInputs, instanceAccelBuffer);
+}
+
+OptixTraversableHandle OptixScene::buildTraversable(const std::vector<OptixBuildInput>& buildInputs, CudaBuffer& cudaBuffer) {
+	return buildTraversable(optixContext, buildInputs, cudaBuffer);
+}
+
+OptixTraversableHandle OptixScene::buildTraversable(const OptixDeviceContext& optixContext, const std::vector<OptixBuildInput>& buildInputs, CudaBuffer& accelBuffer) {
+	OptixTraversableHandle traversableHandle = { 0 };
+	OptixAccelBufferSizes bufferSizes;
+
+	// BLAS Setup
+	OptixAccelBuildOptions accelOptions = {};
+	accelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
+	accelOptions.motionOptions.numKeys = 1;
+	accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+	optixCheck(
+		optixAccelComputeMemoryUsage(
+			optixContext,
+			&accelOptions,
+			buildInputs.data(),
+			buildInputs.size(), // num_build_inputs
+			&bufferSizes
+		),
+		"CudaScene",
+		"Failed to compute acceleration structure memory usage."
+	);
+
+	CudaBuffer compactedSizeBuffer;
+	compactedSizeBuffer.alloc(sizeof(uint64_t));
+
+	OptixAccelEmitDesc emitDesc;
+	emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+	emitDesc.result = compactedSizeBuffer.getCuDevicePointer();
+
+	CudaBuffer tempBuffer;
+	tempBuffer.alloc(bufferSizes.tempSizeInBytes);
+
+	CudaBuffer outputBuffer;
+	outputBuffer.alloc(bufferSizes.outputSizeInBytes);
+
+	optixCheck(
+		optixAccelBuild(
+			optixContext,
+			0,
+			&accelOptions,
+			buildInputs.data(), (int) buildInputs.size(),
+			tempBuffer.getCuDevicePointer(), tempBuffer.sizeInBytes,
+			outputBuffer.getCuDevicePointer(), outputBuffer.sizeInBytes,
+
+			&traversableHandle,
+			&emitDesc, 1
+		),
+		"CudaScene",
+		"Failed to build acceleration structure."
+	);
+
+	// Compact
+	uint64_t compactedSize;
+	compactedSizeBuffer.download(&compactedSize, 1);
+
+	accelBuffer.alloc(compactedSize);
+	optixCheck(
+		optixAccelCompact(
+			optixContext,
+			0,
+			traversableHandle,
+			accelBuffer.getCuDevicePointer(), accelBuffer.sizeInBytes,
+			&traversableHandle
+		),
+		"CudaScene",
+		"Failed to compact acceleration structure."
+	);
+	cudaSyncCheck("CudaScene", "Failed to synchronize after acceleration structure build.");
+
+	// Clean up
+	outputBuffer.free();
+	tempBuffer.free();
+	compactedSizeBuffer.free();
+
+	return traversableHandle;
 }

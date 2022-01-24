@@ -52,12 +52,14 @@ struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord {
 
 SonelMapper::SonelMapper(
 	const OptixSetup& optixSetup,
-	const OptixScene& cudaScene,
-	SonelMapperConfig config
-): optixSetup(optixSetup), 
-cudaScene(cudaScene), 
-frequencyIndex(0), 
-frequencySize(config.frequencySize) {
+	const OptixScene& cudaScene
+): optixSetup(optixSetup), cudaScene(cudaScene), 
+   frequencyIndex(0), frequencySize(0) {
+	
+}
+
+void SonelMapper::init(SonelMapperConfig config) {
+	frequencySize = config.frequencySize;
 	sonelMap.setSoundSources(config.soundSources);
 	sonelMap.duration = config.echogramDuration;
 	sonelMap.soundSpeed = config.soundSpeed;
@@ -83,19 +85,16 @@ frequencySize(config.frequencySize) {
 	std::cout << "[SonelMapper] Creating sonel hit programs." << std::endl;
 	createSonelHitgroupPrograms();
 
-	launchParams.traversable = cudaScene.getTraversableHandle();
+	launchParams.traversable = cudaScene.getGeoTraversable();
 
-	std::cout << "#osc: setting up optix pipeline ..." << std::endl;
+	std::cout << "[SonelMapper] Creating sonel pipeline." << std::endl;
 	createSonelPipeline();
 
-	std::cout << "#osc: building SBT ..." << std::endl;
+	std::cout << "[SonelMapper] Building SBT." << std::endl;
 	buildSonelSbt();
 
-	std::cout << "#osc: context, module, pipeline, etc, all set up ..."
-		<< std::endl;
-
 	std::cout << GDT_TERMINAL_GREEN;
-	std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
+	std::cout << "[SonelMapper] Initialized." << std::endl;
 	std::cout << GDT_TERMINAL_DEFAULT;
 }
 
@@ -311,26 +310,34 @@ void SonelMapper::buildSonelRaygenRecords() {
 
 	for (int i = 0; i < sonelRaygenPgs.size(); i++) {
 		RaygenRecord rec;
-		OPTIX_CHECK(optixSbtRecordPackHeader(sonelRaygenPgs[i], &rec));
+		optixCheck(
+			optixSbtRecordPackHeader(sonelRaygenPgs[i], &rec),
+			"SonelMapper",
+			"Failed to record sbt record header (raygen pgs)."
+		);
 		rec.data = nullptr; /* for now ... */
 		raygenRecords.push_back(rec);
 	}
 
-	sonelRaygenRecordsBuffer.alloc_and_upload(raygenRecords);
-	sonelSbt.raygenRecord = sonelRaygenRecordsBuffer.d_pointer();
+	sonelRaygenRecordsBuffer.allocAndUpload(raygenRecords);
+	sonelSbt.raygenRecord = sonelRaygenRecordsBuffer.getCuDevicePointer();
 }
 
 void SonelMapper::buildSonelMissRecords() {
 	std::vector<MissRecord> missRecords;
 	for (int i = 0; i < sonelMissPgs.size(); i++) {
 		MissRecord rec;
-		OPTIX_CHECK(optixSbtRecordPackHeader(sonelMissPgs[i], &rec));
+		optixCheck(
+			optixSbtRecordPackHeader(sonelMissPgs[i], &rec),
+			"SonelMapper",
+			"Failed to record sbt record header (miss pgs)."
+		);
 		rec.data = nullptr; /* for now ... */
 		missRecords.push_back(rec);
 	}
 
-	sonelMissRecordsBuffer.alloc_and_upload(missRecords);
-	sonelSbt.missRecordBase = sonelMissRecordsBuffer.d_pointer();
+	sonelMissRecordsBuffer.allocAndUpload(missRecords);
+	sonelSbt.missRecordBase = sonelMissRecordsBuffer.getCuDevicePointer();
 
 	sonelSbt.missRecordStrideInBytes = sizeof(MissRecord);
 	sonelSbt.missRecordCount = (int)missRecords.size();
@@ -347,7 +354,11 @@ void SonelMapper::buildSonelHitgroupRecords() {
 		for (int rayId = 0; rayId < SonelMapperRayTypes::RaySize; rayId++) {
 			HitgroupRecord rec;
 
-			OPTIX_CHECK(optixSbtRecordPackHeader(sonelHitgroupPgs[rayId], &rec));
+			optixCheck(
+				optixSbtRecordPackHeader(sonelHitgroupPgs[rayId], &rec),
+				"SonelMapper",
+				"Failed to record sbt record header (hitgroup pgs)."
+			);
 
 			cudaScene.fill(meshId, rec.data);
 
@@ -355,8 +366,8 @@ void SonelMapper::buildSonelHitgroupRecords() {
 		}
 	}
 
-	sonelHitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
-	sonelSbt.hitgroupRecordBase = sonelHitgroupRecordsBuffer.d_pointer();
+	sonelHitgroupRecordsBuffer.allocAndUpload(hitgroupRecords);
+	sonelSbt.hitgroupRecordBase = sonelHitgroupRecordsBuffer.getCuDevicePointer();
 	sonelSbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
 	sonelSbt.hitgroupRecordCount = (int)hitgroupRecords.size();
 }
@@ -375,6 +386,7 @@ void SonelMapper::calculate() {
 	uint32_t maxItems = 100;
 
 	octTrees.resize(static_cast<uint64_t>(sonelMap.duration / sonelMap.timestep) + 1);
+	sonelArrays.resize(static_cast<uint64_t>(sonelMap.duration / sonelMap.timestep) + 1);
 	for (int i = 0; i < octTrees.size(); i++) {
 		octTrees[i].init(box, maxItems);
 	}
@@ -385,13 +397,13 @@ void SonelMapper::calculate() {
 
 		for (uint32_t fIndex = 0; fIndex < soundSource.frequencySize; fIndex++) {
 			SoundFrequency& frequency = soundSource.frequencies[fIndex];
-			printf("\tSimulating frequency (%d, %f)\n", fIndex, frequency.frequency);
+			printf("\tSimulating frequency (%d, %d)\n", fIndex, frequency.frequency);
 
 			sonelMap.cudaUpload(sonelMapDevicePtr, sourceIndex, fIndex);
 			launchParams.frequencyIndex = fIndex;
 			launchOptix(frequency, sourceIndex);
 			downloadSonelDataForFrequency(fIndex, sourceIndex);
-			sonelMap.cudaDestroy(sonelMapDevicePtr, fIndex);
+			sonelMap.cudaDestroy(sonelMapDevicePtr, sourceIndex, fIndex);
 			cudaSyncCheck("SonelMapper", "Failed to sync.");
 		}
 	}
@@ -399,6 +411,10 @@ void SonelMapper::calculate() {
 
 std::vector<OctTree<Sonel>>* SonelMapper::getSonelMap() {
 	return &octTrees;
+}
+
+std::vector<std::vector<Sonel>>* SonelMapper::getSonelArrays() {
+	return &sonelArrays;
 }
 
 void SonelMapper::launchOptix(SoundFrequency& frequency, uint32_t sourceIndex) {
@@ -451,6 +467,7 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 			if (timeIndex < octTrees.size()) {
 				sonelAmount++;
 				octTrees[timeIndex].insert(&sonel, sonel.position);
+				sonelArrays[timeIndex].push_back(sonel);
 			}
 		}
 	}

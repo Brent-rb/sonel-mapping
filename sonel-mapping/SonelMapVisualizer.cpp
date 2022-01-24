@@ -36,42 +36,49 @@ struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord {
 	optix, creates module, pipeline, programs, SBT, etc. */
 SonelMapVisualizer::SonelMapVisualizer(
 	const OptixSetup& optixSetup,
-	const OptixScene& cudaScene
-): optixSetup(optixSetup), cudaScene(cudaScene), sonelMap(nullptr) {
+	OptixScene& cudaScene
+): optixSetup(optixSetup), cudaScene(cudaScene), sonelMap(nullptr), sonelArray(nullptr) {
+	
+}
+
+void SonelMapVisualizer::init() {
 	launchParams.octTree = nullptr;
 
-	std::cout << "#osc: setting up module ..." << std::endl;
+	std::cout << "[SonelMapVisualizer] Creating render module." << std::endl;
 	createRenderModule();
 
-	std::cout << "#osc: creating raygen programs ..." << std::endl;
+	std::cout << "[SonelMapVisualizer] Creating raygen programs." << std::endl;
 	createRenderRaygenPrograms();
 
-	std::cout << "#osc: creating miss programs ..." << std::endl;
+	std::cout << "[SonelMapVisualizer] Creating miss programs." << std::endl;
 	createRenderMissPrograms();
 
-	std::cout << "#osc: creating hitgroup programs ..." << std::endl;
+	std::cout << "[SonelMapVisualizer] Creating hitgroup programs." << std::endl;
 	createRenderHitgroupPrograms();
 
-	launchParams.traversable = cudaScene.getTraversableHandle();
-
-	std::cout << "#osc: setting up optix pipeline ..." << std::endl;
+	std::cout << "[SonelMapVisualizer] Creating render pipeline." << std::endl;
 	createRenderPipeline();
 
 
-	std::cout << "#osc: building SBT ..." << std::endl;
+	std::cout << "[SonelMapVisualizer] Building SBT." << std::endl;
 	buildRenderSbt();
 
 	launchParamsBuffer.alloc(sizeof(launchParams));
-	std::cout << "#osc: context, module, pipeline, etc, all set up ..."
+	std::cout << "[SonelMapVisualizer] context, module, pipeline, etc, all set up ..."
 		<< std::endl;
 
 	std::cout << GDT_TERMINAL_GREEN;
-	std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
+	std::cout << "[SonelMapVisualizer] Optix 7 Sample fully set up" << std::endl;
 	std::cout << GDT_TERMINAL_DEFAULT;
 }
 
 void SonelMapVisualizer::setSonelMap(std::vector<OctTree<Sonel>>* sonelMap) {
 	this->sonelMap = sonelMap;
+	timestep = 0;
+}
+
+void SonelMapVisualizer::setSonelArray(std::vector<std::vector<Sonel>>* sonelArray) {
+	this->sonelArray = sonelArray;
 	timestep = 0;
 }
 
@@ -84,13 +91,13 @@ void SonelMapVisualizer::createRenderModule() {
 	renderModuleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 
 	renderPipelineCompileOptions = {};
-	renderPipelineCompileOptions.traversableGraphFlags =
-		OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+	renderPipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
 	renderPipelineCompileOptions.usesMotionBlur = false;
 	renderPipelineCompileOptions.numPayloadValues = 2;
 	renderPipelineCompileOptions.numAttributeValues = 2;
 	renderPipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 	renderPipelineCompileOptions.pipelineLaunchParamsVariableName = "launchParams";
+	renderPipelineCompileOptions.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE | OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 
 	renderPipelineLinkOptions.maxTraceDepth = 2;
 
@@ -194,12 +201,14 @@ void SonelMapVisualizer::createRenderHitgroupPrograms() {
 	pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 	pgDesc.hitgroup.moduleCH = renderModule;
 	pgDesc.hitgroup.moduleAH = renderModule;
+	pgDesc.hitgroup.moduleIS = renderModule;
 
 	// -------------------------------------------------------
 	// radiance rays
 	// -------------------------------------------------------
 	pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__radiance";
 	pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__radiance";
+	pgDesc.hitgroup.entryFunctionNameIS = "__intersection__radiance";
 
 	optixCheck(
 		optixProgramGroupCreate(
@@ -269,7 +278,7 @@ void SonelMapVisualizer::createRenderPipeline() {
 			2 * 1024,
 			/* [in] The maximum depth of a traversable graph
 				passed to trace. */
-			1
+			3
 		),
 		"SonelMapVisualizer",
 		"Failed to set stack size"
@@ -284,26 +293,34 @@ void SonelMapVisualizer::buildRenderRaygenRecords() {
 
 	for (int i = 0; i < renderRaygenPgs.size(); i++) {
 		RaygenRecord rec;
-		OPTIX_CHECK(optixSbtRecordPackHeader(renderRaygenPgs[i], &rec));
+		optixCheck(
+			optixSbtRecordPackHeader(renderRaygenPgs[i], &rec),
+			"SonelMapVisualizer",
+			"Failed to record pack header (render raygen pgs)."
+		);
 		rec.data = nullptr; /* for now ... */
 		raygenRecords.push_back(rec);
 	}
 
-	renderRaygenRecordsBuffer.alloc_and_upload(raygenRecords);
-	renderSbt.raygenRecord = renderRaygenRecordsBuffer.d_pointer();
+	renderRaygenRecordsBuffer.allocAndUpload(raygenRecords);
+	renderSbt.raygenRecord = renderRaygenRecordsBuffer.getCuDevicePointer();
 }
 
 void SonelMapVisualizer::buildRenderMissRecords() {
 	std::vector<MissRecord> missRecords;
 	for (int i = 0; i < renderMissPgs.size(); i++) {
 		MissRecord rec;
-		OPTIX_CHECK(optixSbtRecordPackHeader(renderMissPgs[i], &rec));
+		optixCheck(
+			optixSbtRecordPackHeader(renderMissPgs[i], &rec),
+			"SonelMapVisualizer",
+			"Failed to record pack header (render miss pgs)."
+		);
 		rec.data = nullptr; /* for now ... */
 		missRecords.push_back(rec);
 	}
 
-	renderMissRecordsBuffer.alloc_and_upload(missRecords);
-	renderSbt.missRecordBase = renderMissRecordsBuffer.d_pointer();
+	renderMissRecordsBuffer.allocAndUpload(missRecords);
+	renderSbt.missRecordBase = renderMissRecordsBuffer.getCuDevicePointer();
 
 	renderSbt.missRecordStrideInBytes = sizeof(MissRecord);
 	renderSbt.missRecordCount = (int)missRecords.size();
@@ -312,6 +329,7 @@ void SonelMapVisualizer::buildRenderMissRecords() {
 void SonelMapVisualizer::buildRenderHitgroupRecords() {
 	const Model* model = cudaScene.getModel();
 	int meshSize = model->meshes.size();
+
 
 	std::vector<HitgroupRecord> hitgroupRecords;
 	for (int meshId = 0; meshId < meshSize; meshId++) {
@@ -330,12 +348,31 @@ void SonelMapVisualizer::buildRenderHitgroupRecords() {
 			);
 			
 			cudaScene.fill(meshId, rec.data);
+			rec.data.sonel = nullptr;
 			hitgroupRecords.push_back(rec);
 		}
 	}
 
-	renderHitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
-	renderSbt.hitgroupRecordBase = renderHitgroupRecordsBuffer.d_pointer();
+	for (int sonelId = 0; sonelId < cudaScene.getSonelSize(); sonelId++) {
+		for (int rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
+			HitgroupRecord rec;
+
+			optixCheck(
+				optixSbtRecordPackHeader(
+					renderHitgroupPgs[rayId],
+					&rec
+				),
+				"SonelMapVisualizer",
+				"Failed to create SBT Record Header"
+			);
+
+			rec.data.sonel = (Sonel*) cudaScene.getSonelDevicePointer(sonelId);
+			hitgroupRecords.push_back(rec);
+		}
+	}
+
+	renderHitgroupRecordsBuffer.allocAndUpload(hitgroupRecords);
+	renderSbt.hitgroupRecordBase = renderHitgroupRecordsBuffer.getCuDevicePointer();
 	renderSbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
 	renderSbt.hitgroupRecordCount = (int)hitgroupRecords.size();
 }
@@ -354,12 +391,10 @@ void SonelMapVisualizer::render() {
 	if (launchParams.frame.size.x == 0) {
 		return;
 	}
-
-	launchParamsBuffer.upload(&launchParams, 1);
-
 	
-
 	uploadSonelMapSnapshot();
+	buildRenderSbt();
+	launchParams.traversable = cudaScene.getInstanceTraversable();
 	launchParamsBuffer.upload(&launchParams, 1);
 
 	optixCheck(
@@ -369,7 +404,7 @@ void SonelMapVisualizer::render() {
 			optixSetup.getCudaStream(),
 
 			/*! parameters and SBT */
-			launchParamsBuffer.d_pointer(),
+			launchParamsBuffer.getCuDevicePointer(),
 			launchParamsBuffer.sizeInBytes,
 			&renderSbt,
 
@@ -415,14 +450,14 @@ void SonelMapVisualizer::resize(const vec2i& newSize) {
 	// update the launch parameters that we'll pass to the optix
 	// launch:
 	launchParams.frame.size = newSize;
-	launchParams.frame.colorBuffer = (uint32_t*)colorBuffer.d_pointer();
+	launchParams.frame.colorBuffer = (uint32_t*)colorBuffer.getCuDevicePointer();
 
 	// and re-set the camera, since aspect may have changed
 	setCamera(lastSetCamera);
 }
 
 void SonelMapVisualizer::uploadSonelMapSnapshot() {
-	printf("Uploading index %d\n", timestep);
+	printf("[SonelMapVisualizer] Uploading index %d\n", timestep);
 
 	if (sonelMap == nullptr) {
 		launchParams.octTree = nullptr;
@@ -440,10 +475,19 @@ void SonelMapVisualizer::uploadSonelMapSnapshot() {
 
 	launchParams.octTree = deviceOctTree;
 
+	if (sonelArray != nullptr) {
+		std::vector<Sonel>& sonels = (*sonelArray)[timestep];
+		if (sonels.size() > 0) {
+			cudaScene.setSonels(&sonels, 5.0f);
+			cudaScene.build();
+		}
+	}
+
 	timestep++;
 	if (timestep == sonelMap->size()) {
 		timestep = 0;
 	}
+
 }
 
 /*! download the rendered color buffer */

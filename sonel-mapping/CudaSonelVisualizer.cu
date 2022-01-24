@@ -40,6 +40,8 @@ extern "C" __constant__ LaunchParams launchParams;
 struct PerRayData {
 	CudaRandom random;
 
+	float energy;
+	uint16_t hits;
 	vec3f pixelColor;
 };
 
@@ -55,9 +57,12 @@ struct PerRayData {
 
 
 extern "C" __global__ void __closesthit__radiance() {
-	const TriangleMeshSbtData& sbtData
-		= *(const TriangleMeshSbtData*)optixGetSbtDataPointer();
+	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*) optixGetSbtDataPointer();
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+
+	if (sbtData.sonel != nullptr) {
+		return;	
+	}
 
 	// ------------------------------------------------------------------
 	// gather some basic hit information
@@ -97,8 +102,9 @@ extern "C" __global__ void __closesthit__radiance() {
 	float frequencies = 0.0f;
 	int hits = 0;
 
-	OctTreeResult<Sonel> octTreeHit = launchParams.octTree->get(surfPos);
+	// OctTreeResult<Sonel> octTreeHit = launchParams.octTree->get(surfPos);
 
+	/*
 	for (int i = 0; i < octTreeHit.currentItems; i++) {
 		Sonel* sonel = &(octTreeHit.data[i].data);
 		
@@ -109,18 +115,68 @@ extern "C" __global__ void __closesthit__radiance() {
 			hits++;
 		}
 	}
+	*/
 	
 	
-	if (hits == 0) {
+	if (prd.hits == 0) {
 		prd.pixelColor = vec3f(pixelColor.x, pixelColor.x, pixelColor.x);
 	}
 	else {
-		prd.pixelColor = vec3f(energy * 100.0f, 0.0 , (frequencies / hits) / 4000.0f);
+		// printf("Hits: %d, energy: %f\n", prd.hits, prd.energy);
+		prd.pixelColor = vec3f(prd.energy * 100.0f, 0.0 , 0.0f);
 	}
 	
 }
 
-extern "C" __global__ void __anyhit__radiance() { /*! for this simple example, this will remain empty */
+extern "C" __global__ void __anyhit__radiance() {
+	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*) optixGetSbtDataPointer();
+	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+
+	// printf("AnyHit \n");
+	if (sbtData.sonel != nullptr) {
+		// printf("AnyHit Sonel Frequency: %f Energy: %f\n", sbtData.sonel->frequency, sbtData.sonel->energy);
+		prd.energy += sbtData.sonel->energy;
+		prd.hits++;
+		optixIgnoreIntersection();
+	}
+}
+
+extern "C" __global__ void __intersection__radiance() {
+	// printf("RayOrigin\n");
+	const float3 rayOriginOptix = optixGetObjectRayOrigin();
+
+	// printf("RayDir\n");
+	const float3 rayDirectionOptix = optixGetObjectRayDirection();
+	gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
+	gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
+
+	const TriangleMeshSbtData* sbtData = (const TriangleMeshSbtData*)optixGetSbtDataPointer();
+	const uint32_t primitiveIndex = optixGetPrimitiveIndex();
+	const Sonel* sonelPtr = sbtData->sonel;
+	
+	if (sonelPtr != nullptr) {
+		const gdt::vec3f center = sonelPtr->position;
+		// printf("[Intersection] Sonel AABB: (%f, %f, %f)\n", center.x, center.y, center.z);
+
+		gdt::vec3f oc = rayOrigin - center;
+		float a = gdt::dot(rayDirection, rayDirection);
+		float b = 2.0 * gdt::dot(oc, rayDirection);
+		float c = gdt::dot(oc, oc) - RADIUS * RADIUS;
+		float discriminant = b * b - 4 * a * c;
+
+		if (discriminant < 0) {
+			// printf("[Intersection] Sonel Ignored: (%f, %f, %f)\n", center.x, center.y, center.z);
+			// optixIgnoreIntersection();
+		}
+		else {
+			// printf("[Intersection] Sonel AABB: (%f, %f, %f)\n", center.x, center.y, center.z);
+			float closestT = (-b - sqrt(discriminant)) / (2.0 * a);
+			optixReportIntersection(closestT, 0);
+		}
+	}
+	else {
+		// printf("[Intersection] Triangle\n");
+	}
 }
 
 
@@ -135,7 +191,7 @@ extern "C" __global__ void __anyhit__radiance() { /*! for this simple example, t
 extern "C" __global__ void __miss__radiance() {
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 	// set to constant white as background color
-	prd.pixelColor = vec3f(1.f);
+	prd.pixelColor = vec3f(0.1f);
 }
 
 //------------------------------------------------------------------------------
@@ -156,6 +212,8 @@ extern "C" __global__ void __raygen__renderFrame() {
 	curandState_t curandState;
 	curand_init((randX + randY) * accumId, 0, 0, &curandState);
 	PerRayData prd;
+	prd.energy = 0;
+	prd.hits = 0;
 	prd.random.init((randX + randY) * accumId, 0, 0);
 	prd.pixelColor = vec3f(0.f);
 
@@ -183,7 +241,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 		1e20f,  // tmax
 		0.0f,   // rayTime
 		OptixVisibilityMask(255),
-		OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+		OPTIX_RAY_FLAG_NONE,//OPTIX_RAY_FLAG_NONE,
 		RADIANCE_RAY_TYPE,            // SBT offset
 		RAY_TYPE_COUNT,               // SBT stride
 		RADIANCE_RAY_TYPE,            // missSBTIndex 

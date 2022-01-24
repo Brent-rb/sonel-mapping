@@ -17,7 +17,7 @@
 #pragma once
 
 // our own classes, partly shared between host and device
-#include "CUDABuffer.h"
+#include "CudaBuffer.h"
 #include "SonelMap.h"
 #include "CudaSonelMapperParams.h"
 #include "OctTree.h"
@@ -38,13 +38,14 @@ class SonelMapper {
 		  optix, creates module, pipeline, programs, SBT, etc. */
 		SonelMapper(
 			const OptixSetup& optixSetup,
-			const OptixScene& cudaScene,
-			SonelMapperConfig config
+			const OptixScene& cudaScene
 		);
 
+		void init(SonelMapperConfig config);
 		
 		void calculate();
 		std::vector<OctTree<Sonel>>* getSonelMap();
+		std::vector<std::vector<Sonel>>* getSonelArrays();
 
 	protected:
 		void createSonelModule();
@@ -57,7 +58,6 @@ class SonelMapper {
 		void buildSonelSbt();
 
 		void launchOptix(SoundFrequency& frequency, uint32_t sourceIndex);
-		void launchOptixForFrequency(uint32_t fIndex);
 		void downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex);
 
 	private:
@@ -80,11 +80,11 @@ class SonelMapper {
 
 		// Programs
 		std::vector<OptixProgramGroup> sonelRaygenPgs;
-		CUDABuffer sonelRaygenRecordsBuffer;
+		CudaBuffer sonelRaygenRecordsBuffer;
 		std::vector<OptixProgramGroup> sonelMissPgs;
-		CUDABuffer sonelMissRecordsBuffer;
+		CudaBuffer sonelMissRecordsBuffer;
 		std::vector<OptixProgramGroup> sonelHitgroupPgs;
-		CUDABuffer sonelHitgroupRecordsBuffer;
+		CudaBuffer sonelHitgroupRecordsBuffer;
 		OptixShaderBindingTable sonelSbt = {};
 
 		// Data
@@ -99,4 +99,5 @@ class SonelMapper {
 		bool hasCalculatedSonelMap = false;
 
 		std::vector<OctTree<Sonel>> octTrees;
+		std::vector<std::vector<Sonel>> sonelArrays;
 };

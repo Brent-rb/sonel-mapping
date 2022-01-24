@@ -1,58 +1,96 @@
 #pragma once
-#include "CUDABuffer.h"
+#include "CudaBuffer.h"
 #include "TriangleMeshSbtData.h"
 #include "Model.h"
+#include "Sonel.h"
 
 class OptixScene {
 public:
-	OptixScene(const OptixDeviceContext& optixContext, const Model* model);
+	OptixScene(const OptixDeviceContext& optixContext);
 	~OptixScene();
 
-	const OptixTraversableHandle& getTraversableHandle() const;
-	const Model* getModel() const;
+	void clear();
+	void build();
+	void buildTriangles();
+	void buildSonels();
+
+	uint32_t getSonelSize();
+
+	void setModel(Model* model);
+	Model* getModel() const;
+
+	void setSonels(std::vector<Sonel>* sonels, float searchRadius);
+	std::vector<Sonel>* getSonels() const;
+	CUdeviceptr getSonelDevicePointer(int sonelIndex) const;
+
+	const OptixTraversableHandle& getGeoTraversable() const;
+	const OptixTraversableHandle& getAabbTraversable() const;
+	const OptixTraversableHandle& getInstanceTraversable() const;
+	
 	void fill(const uint32_t meshIndex, TriangleMeshSbtData& triangleData) const;
 
 protected:
-	void build(const OptixDeviceContext& optixContext);
+	void clearMeshBuffers();
+	void clearSonelBuffers();
 
-	void prepareBuffers(
-		std::vector<OptixBuildInput>& triangleInputs,
-		std::vector<uint32_t>& triangleInputFlags,
-		std::vector<CUdeviceptr>& cudaVertices,
-		std::vector<CUdeviceptr>& cudaIndices
-	);
+	void prepareTriangleBuffers();
+	void prepareSonelBuffers();
 
-	void buildTriangleInput(
-		std::vector<OptixBuildInput>& triangleInputs, 
-		std::vector<uint32_t>& triangleInputFlags, 
-		std::vector<CUdeviceptr>& cudaVertices, 
-		std::vector<CUdeviceptr>& cudaIndices
-	);
-
-	void buildAccelStructure(
-		const OptixDeviceContext& optixContext,
-		const std::vector<OptixBuildInput>& triangleInputs,
-		OptixTraversableHandle& accelHandle
-	);
-
+	void buildTriangleInputs();
 	void buildTextures();
+	void buildSonelAabbInputs();
+	void buildTriangleAccelStructure();
+	void buildSonelAabbAccelStructure();
+	void buildInstanceStructure();
+
+	OptixTraversableHandle buildTraversable(const std::vector<OptixBuildInput>& buildInputs, CudaBuffer& accelBuffer);
+	static OptixTraversableHandle buildTraversable(const OptixDeviceContext& optixContext, const std::vector<OptixBuildInput>& buildInputs, CudaBuffer& accelBuffer);
 
 protected:
+	const OptixDeviceContext& optixContext;
+	OptixTraversableHandle triangleHandle;
+	OptixTraversableHandle aabbHandle;
+	OptixTraversableHandle instanceHandle;
+
+	CUdeviceptr optixInstanceBuffer;
+	std::vector<OptixInstance> optixInstances;
+
+
 	// Model that we will load
-	const Model* model;
+	Model* model;
+	std::vector<Sonel>* sonels;
+
 	uint32_t meshSize;
+	uint32_t sonelSize;
 
-	OptixTraversableHandle traversableHandle;
+	
 	// Buffer for the accell structure
-	CUDABuffer accelBuffer;
-
+	CudaBuffer triangleAccelBuffer;
+	CudaBuffer aabbAccelBuffer;
+	CudaBuffer instanceAccelBuffer;
 
 	// One buffer per mesh
-	std::vector<CUDABuffer> vertexBuffer;
-	std::vector<CUDABuffer> normalBuffer;
-	std::vector<CUDABuffer> texcoordBuffer;
-	std::vector<CUDABuffer> indexBuffer;
+	std::vector<CudaBuffer> vertexBuffer;
+	std::vector<CudaBuffer> normalBuffer;
+	std::vector<CudaBuffer> texcoordBuffer;
+	std::vector<CudaBuffer> indexBuffer;
+	
+	// Sonel data
+	std::vector<CudaBuffer> sonelAabbBuffer;
+	CudaBuffer sonelBuffer;
+	float radius = 0.5f;
 
+	// Build data
+	std::vector<OptixBuildInput> triangleInputs;
+	std::vector<uint32_t> triangleInputFlags;
+	std::vector<CUdeviceptr> cudaVertices;
+	std::vector<CUdeviceptr> cudaIndices;
+	bool meshBuffersInvalid = false;
+
+	std::vector<OptixBuildInput> aabbInputs;
+	std::vector<uint32_t> aabbInputFlags;
+	std::vector<CUdeviceptr> cudaAabbs;
+	bool sonelBuffersInvalid = false;
 
 	// Texture data
 	std::vector<cudaArray_t> textureArrays;

@@ -60,13 +60,11 @@ public:
 		soundSources[sourceIndex].cudaDownload(&(deviceCopy.soundSources[sourceIndex]), frequencyIndex);
 	}
 
-	void cudaDestroy(SonelMapData* deviceSonelMap, uint16_t frequencyIndex) {
+	void cudaDestroy(SonelMapData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
 		SonelMapData deviceCopy;
 		cudaMemcpy(&deviceCopy, deviceSonelMap, sizeof(SonelMapData), cudaMemcpyDeviceToHost);
 
-		for (int i = 0; i < soundSourceSize; i++) {
-			soundSources[i].cudaDestroy(&(deviceCopy.soundSources[i]), frequencyIndex);
-		}
+		soundSources[sourceIndex].cudaDestroy(&(deviceCopy.soundSources[sourceIndex]), frequencyIndex);
 
 		cudaFree(deviceCopy.soundSources);
 	}
