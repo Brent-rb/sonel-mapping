@@ -18,10 +18,12 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 
-#include "../SonelMapping/Models/LaunchParams.h"
-#include "../SonelMapping/Models/Sonel.h"
 #include "CudaHelper.h"
 #include "CudaRandom.h"
+
+#include "../SonelMapping/SonelVisibilityFlags.h"
+#include "../SonelMapping/Models/LaunchParams.h"
+#include "../SonelMapping/Models/Sonel.h"
 #include "../SonelMapping/Models/TriangleMeshSbtData.h"
 #include "../../common/gdt/gdt/math/vec.h"
 
@@ -106,7 +108,7 @@ extern "C" __global__ void __closesthit__radiance() {
             0.00001f,    // tmin
             1.0f,  // tmax
             0.0f,   // rayTime
-            OptixVisibilityMask(255),
+            OptixVisibilityMask(SONELS_VISIBLE),
             OPTIX_RAY_FLAG_NONE,//OPTIX_RAY_FLAG_NONE,
             RADIANCE_RAY_TYPE,            // SBT offset
             RAY_TYPE_COUNT,               // SBT stride
@@ -230,7 +232,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 		0.f,    // tmin
 		1e20f,  // tmax
 		0.0f,   // rayTime
-		OptixVisibilityMask(255),
+		OptixVisibilityMask(GEOMETRY_VISIBLE),
         OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
 		RADIANCE_RAY_TYPE,            // SBT offset
 		RAY_TYPE_COUNT,               // SBT stride

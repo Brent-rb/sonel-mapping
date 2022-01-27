@@ -1,4 +1,5 @@
 #include "OptixScene.h"
+#include "SonelVisibilityFlags.h"
 
 OptixScene::OptixScene(const OptixDeviceContext& optixContext): 
 	optixContext(optixContext), 
@@ -386,14 +387,14 @@ void OptixScene::buildInstanceStructure() {
 	OptixInstance instances[2] = { {}, {} };
 	memcpy(instances[0].transform, transform, sizeof(float) * 12);
 	instances[0].instanceId = 0;
-	instances[0].visibilityMask = 255;
+	instances[0].visibilityMask = GEOMETRY_VISIBLE;
 	instances[0].sbtOffset = 0;
 	instances[0].flags = OPTIX_INSTANCE_FLAG_NONE;
 	instances[0].traversableHandle = triangleHandle;
 
 	memcpy(instances[1].transform, transform, sizeof(float) * 12);
 	instances[1].instanceId = 1;
-	instances[1].visibilityMask = 255;
+	instances[1].visibilityMask = SONELS_VISIBLE;
 	instances[1].sbtOffset = meshSize;
 	instances[1].flags = OPTIX_INSTANCE_FLAG_NONE;
 	instances[1].traversableHandle = aabbHandle;

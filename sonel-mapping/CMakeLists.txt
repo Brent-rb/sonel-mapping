@@ -70,7 +70,7 @@ add_executable(sonel-mapping
 
   main.cpp
 
-        Cuda/CudaVector.h)
+        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h)
 
 target_link_libraries(
 sonel-mapping
