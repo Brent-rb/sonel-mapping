@@ -463,3 +463,10 @@ Debug
 cmake-build-debug-visual-studio-2019/.cmake
 cmake-build-debug-visual-studio-2019
 cmake-build-release-visual-studio-2019
+common/3rdParty/glfw/CMake
+common/3rdParty/glfw/src/cmake_install.cmake
+*.vcxproj
+*.filters
+*.cmake
+common/3rdParty/glfw/cmake_uninstall.cmake.in
+*.sln
