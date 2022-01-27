@@ -7,14 +7,14 @@
 class OptixSetup {
 public:
 	OptixSetup();
-	OptixSetup(uint32_t deviceIndex);
+	OptixSetup(int deviceIndex);
 	~OptixSetup();
 
 	void init();
 
 	const CUcontext& getCudaContext() const;
-	const CUstream getCudaStream() const;
-	const cudaDeviceProp getCudaDeviceProperties() const;
+	CUstream getCudaStream() const;
+	cudaDeviceProp getCudaDeviceProperties() const;
 	
 	const OptixDeviceContext& getOptixContext() const;
 
@@ -23,7 +23,7 @@ protected:
 	void initContext();
 
 protected:
-	uint32_t cudaDeviceId;
+	int cudaDeviceId;
 	int cudaDeviceSize;
 
 	// Cuda setup

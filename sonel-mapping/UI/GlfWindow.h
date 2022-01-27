@@ -20,7 +20,7 @@
 #include "gdt/math/AffineSpace.h"
 // glfw framework
 #define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
+#include "GLFW/glfw3.h"
 #include "CameraFrame.h"
 #include "CameraFrameManip.h"
 

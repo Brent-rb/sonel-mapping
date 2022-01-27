@@ -17,9 +17,8 @@
 #include <vector>
 
 #include "SonelMapper.h"
-#include "CudaHelper.h"
-#include "TriangleMeshSbtData.h"
-#include "Model.h"
+#include "Models/TriangleMeshSbtData.h"
+#include "Models/Model.h"
 
 extern "C" char embedded_mapper_code[];
 
@@ -63,7 +62,7 @@ void SonelMapper::init(SonelMapperConfig config) {
 	sonelMap.setSoundSources(config.soundSources);
 	sonelMap.duration = config.echogramDuration;
 	sonelMap.soundSpeed = config.soundSpeed;
-	sonelMap.timestep = 0.01;
+	sonelMap.timestep = 0.01f;
 
 	sonelMapDevicePtr = sonelMap.cudaCreate();
 	CudaSonelMapperParams* paramsDevice;
@@ -136,7 +135,7 @@ void SonelMapper::createSonelModule() {
 	);
 
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! does all setup for the raygen program(s) we are going to use */
@@ -167,7 +166,7 @@ void SonelMapper::createSonelRaygenPrograms() {
 		"Failed to create raygen programs."
 	);
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! does all setup for the miss program(s) we are going to use */
@@ -203,7 +202,7 @@ void SonelMapper::createSonelMissPrograms() {
 	);
 
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! does all setup for the hitgroup program(s) we are going to use */
@@ -240,7 +239,7 @@ void SonelMapper::createSonelHitgroupPrograms() {
 		"Failed to create closest hit and any hit programs."
 	);
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! assembles the full pipeline of all programs */
@@ -258,8 +257,8 @@ void SonelMapper::createSonelPipeline() {
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
-	PING;
-	PRINT(programGroups.size());
+	PING
+	PRINT(programGroups.size())
 
 	optixCheck(
 		optixPipelineCreate(
@@ -277,7 +276,7 @@ void SonelMapper::createSonelPipeline() {
 	);
 
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 
 	optixCheck(
 		optixPipelineSetStackSize(
@@ -300,18 +299,19 @@ void SonelMapper::createSonelPipeline() {
 		"Failed to set stack size."
 	);
 
-	if (sizeof_log > 1)
-		PRINT(log);
+	if (sizeof_log > 1) {
+        PRINT(log)
+    }
 }
 
 
 void SonelMapper::buildSonelRaygenRecords() {
 	std::vector<RaygenRecord> raygenRecords;
 
-	for (int i = 0; i < sonelRaygenPgs.size(); i++) {
-		RaygenRecord rec;
+	for (auto & sonelRaygenPg : sonelRaygenPgs) {
+		RaygenRecord rec = {};
 		optixCheck(
-			optixSbtRecordPackHeader(sonelRaygenPgs[i], &rec),
+			optixSbtRecordPackHeader(sonelRaygenPg, &rec),
 			"SonelMapper",
 			"Failed to record sbt record header (raygen pgs)."
 		);
@@ -325,10 +325,10 @@ void SonelMapper::buildSonelRaygenRecords() {
 
 void SonelMapper::buildSonelMissRecords() {
 	std::vector<MissRecord> missRecords;
-	for (int i = 0; i < sonelMissPgs.size(); i++) {
-		MissRecord rec;
+	for (auto & sonelMissPg : sonelMissPgs) {
+		MissRecord rec = {};
 		optixCheck(
-			optixSbtRecordPackHeader(sonelMissPgs[i], &rec),
+			optixSbtRecordPackHeader(sonelMissPg, &rec),
 			"SonelMapper",
 			"Failed to record sbt record header (miss pgs)."
 		);
@@ -349,8 +349,6 @@ void SonelMapper::buildSonelHitgroupRecords() {
 
 	std::vector<HitgroupRecord> hitgroupRecords;
 	for (int meshId = 0; meshId < numObjects; meshId++) {
-		TriangleMesh* mesh = model->meshes[meshId];
-
 		for (int rayId = 0; rayId < SonelMapperRayTypes::RaySize; rayId++) {
 			HitgroupRecord rec;
 
@@ -379,17 +377,8 @@ void SonelMapper::buildSonelSbt() {
 }
 
 /*! render one frame */
-void SonelMapper::calculate() {	
-	const Model* model = cudaScene.getModel();
-
-	BoundingBox box = BoundingBox(model->bounds.lower, model->bounds.upper);
-	uint32_t maxItems = 100;
-
-	octTrees.resize(static_cast<uint64_t>(sonelMap.duration / sonelMap.timestep) + 1);
+void SonelMapper::calculate() {
 	sonelArrays.resize(static_cast<uint64_t>(sonelMap.duration / sonelMap.timestep) + 1);
-	for (int i = 0; i < octTrees.size(); i++) {
-		octTrees[i].init(box, maxItems);
-	}
 
 	for (uint32_t sourceIndex = 0; sourceIndex < sonelMap.soundSourceSize; sourceIndex++) {
         launchParams.soundSourceIndex = sourceIndex;
@@ -447,9 +436,9 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 
 	// Go over all rays
 	uint64_t sonelAmount = 0;
-	for (int i = 0; i < frequency.sonelAmount; i++) {
+	for (uint32_t i = 0; i < frequency.sonelAmount; i++) {
 		// Go over each bounce in the ray
-		for (int j = 0; j < frequency.sonelMaxDepth; j++) {
+		for (uint32_t j = 0; j < frequency.sonelMaxDepth; j++) {
 			Sonel& sonel = sonels[i * frequency.sonelMaxDepth + j];
 			sonel.frequency = frequency.frequency;
 
@@ -458,17 +447,16 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 				break;
 			}
 
-			uint64_t timeIndex = static_cast<uint64_t>(sonel.time / sonelMap.timestep);
+			auto timeIndex = static_cast<uint64_t>(sonel.time / sonelMap.timestep);
 
-			if (timeIndex < octTrees.size()) {
+			if (timeIndex < sonelArrays.size()) {
 				sonelAmount++;
-				octTrees[timeIndex].insert(&sonel, sonel.position);
 				sonelArrays[timeIndex].push_back(sonel);
 			}
 		}
 	}
 
-	printf("[SonelMapper] Sonels added %d\n", sonelAmount);
+	printf("[SonelMapper] Sonels added %llu\n", sonelAmount);
 }
 
 const SonelMapData &SonelMapper::getSonelMapData() const {

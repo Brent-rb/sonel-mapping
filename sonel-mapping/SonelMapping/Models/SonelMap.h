@@ -32,7 +32,7 @@ public:
 
         determineFrequencies(inputSources);
 
-		soundSourceSize = inputSources.size();
+		soundSourceSize = static_cast<uint32_t>(inputSources.size());
 		soundSources = new SoundSource[soundSourceSize];
 		memcpy(soundSources, inputSources.data(), soundSourceSize * sizeof(SoundSource));
 	}
@@ -113,7 +113,7 @@ private:
         std::sort(tempFrequencies.begin(), tempFrequencies.end());
         frequencies = new uint32_t[tempFrequencies.size()];
         memcpy(frequencies, tempFrequencies.data(), sizeof(uint32_t) * tempFrequencies.size());
-        frequencySize = tempFrequencies.size();
+        frequencySize = static_cast<uint32_t>(tempFrequencies.size());
     }
 
 

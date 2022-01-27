@@ -2,12 +2,12 @@
 
 // our helper library for window handling
 #include "GlfCameraWindow.h"
-#include <GL/gl.h>
-#include "SonelManager.h"
+#include <gl/GL.h>
+#include "../SonelMapping/SonelManager.h"
 
-class Model;
-class Camera;
-class QuadLight;
+struct Model;
+struct Camera;
+struct QuadLight;
 
 class MainWindow: public GlfCameraWindow {
 public:

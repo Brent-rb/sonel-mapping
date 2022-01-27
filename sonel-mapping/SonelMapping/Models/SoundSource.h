@@ -44,7 +44,7 @@ public:
 	__host__ void setDecibels(const std::vector<float>& inputDecibels) {
 		destroyDecibels();
 
-		decibelSize = inputDecibels.size();
+		decibelSize = static_cast<uint32_t>(inputDecibels.size());
 		decibels = new float[decibelSize];
 		memcpy(decibels, inputDecibels.data(), decibelSize * sizeof(float));
 	}
@@ -136,7 +136,7 @@ public:
 	void setFrequencies(const std::vector<SoundFrequency>& data) {
 		destroy();
 
-		frequencySize = data.size();
+		frequencySize = static_cast<uint32_t>(data.size());
 		frequencies = new SoundFrequency[frequencySize];
 		memcpy(this->frequencies, data.data(), frequencySize * sizeof(SoundFrequency));
 	}

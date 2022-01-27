@@ -18,60 +18,59 @@ find_package(OpenGL REQUIRED)
 
 include_directories(${OptiX_INCLUDE})
 
-cuda_compile_and_embed(embedded_visualizer_code CudaSonelVisualizer.cu)
-CUDA_COMPILE_AND_EMBED(embedded_mapper_code CudaSonelMapper.cu)
+cuda_compile_and_embed(embedded_visualizer_code Cuda/CudaSonelVisualizer.cu)
+CUDA_COMPILE_AND_EMBED(embedded_mapper_code Cuda/CudaSonelMapper.cu)
 
 add_executable(sonel-mapping
   ${embedded_visualizer_code}
   ${embedded_mapper_code}
-  
-  Camera.h
-  CameraFrame.h
-  CameraFrame.cpp
-  CameraFrameManip.h
-  CameraFrameManip.cpp
-  FlyModeManip.h
-  FlyModeManip.cpp
-  InspectModeManip.h
-  InspectModeManip.cpp
-  
-  GlfCameraWindow.h
-  GlfCameraWindow.cpp
-  GlfWindow.h
-  GlfWindow.cpp
-  MainWindow.h
-  MainWindow.cpp
 
-  LaunchParams.h
-  Model.h
-  Model.cpp
-  TriangleMeshSbtData.h
+        UI/Camera.h
+        UI/CameraFrame.h
+        UI/CameraFrame.cpp
+        UI/CameraFrameManip.h
+        UI/CameraFrameManip.cpp
+        UI/FlyModeManip.h
+        UI/FlyModeManip.cpp
+        UI/InspectModeManip.h
+        UI/InspectModeManip.cpp
 
-  CudaBuffer.h
-  CudaHelper.h
-  CudaRandom.h
-  CudaSonelMapperParams.h
-  
-  OptixScene.h
-  OptixScene.cpp
-  OptixSetup.h
-  OptixSetup.cpp
- 
-  Sonel.h
-  SoundSource.h
-  SonelMap.h
-  OctTree.h
+        UI/GlfCameraWindow.h
+        UI/GlfCameraWindow.cpp
+        UI/GlfWindow.h
+        UI/GlfWindow.cpp
+        UI/MainWindow.h
+        UI/MainWindow.cpp
 
-  SonelManager.h
-  SonelManager.cpp
-  SonelMapper.h
-  SonelMapper.cpp
-  SonelMapVisualizer.h
-  SonelMapVisualizer.cpp
+        SonelMapping/Models/LaunchParams.h
+        SonelMapping/Models/Model.h
+        SonelMapping/Models/Model.cpp
+        SonelMapping/Models/TriangleMeshSbtData.h
+
+        Cuda/CudaBuffer.h
+        Cuda/CudaHelper.h
+        Cuda/CudaRandom.h
+        Cuda/CudaSonelMapperParams.h
+
+        SonelMapping/OptixScene.h
+        SonelMapping/OptixScene.cpp
+        SonelMapping/OptixSetup.h
+        SonelMapping/OptixSetup.cpp
+
+        SonelMapping/Models/Sonel.h
+        SonelMapping/Models/SoundSource.h
+        SonelMapping/Models/SonelMap.h
+
+        SonelMapping/SonelManager.h
+        SonelMapping/SonelManager.cpp
+        SonelMapping/SonelMapper.h
+        SonelMapping/SonelMapper.cpp
+        SonelMapping/SonelMapVisualizer.h
+        SonelMapping/SonelMapVisualizer.cpp
 
   main.cpp
 
-        CudaVector.h)
+        Cuda/CudaVector.h)
 
 target_link_libraries(
 sonel-mapping

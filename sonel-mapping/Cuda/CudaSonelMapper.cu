@@ -2,12 +2,11 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 
-#include "Sonel.h"
-#include "OctTree.h"
+#include "../SonelMapping/Models/Sonel.h"
 #include "CudaHelper.h"
 #include "CudaSonelMapperParams.h"
 #include "CudaRandom.h"
-#include "TriangleMeshSbtData.h"
+#include "../SonelMapping/Models/TriangleMeshSbtData.h"
 
 #define DIFFUSE_BOUNCE_PROB 0.45f
 #define SPECULAR_BOUNCE_PROD 0.45f

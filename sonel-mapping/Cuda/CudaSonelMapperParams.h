@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 
-#include "SonelMap.h"
+#include "../SonelMapping/Models/SonelMap.h"
 
 class CudaSonelMapperParams {
 public:

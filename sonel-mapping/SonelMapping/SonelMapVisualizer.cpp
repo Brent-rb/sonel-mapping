@@ -1,9 +1,7 @@
 #include "SonelMapVisualizer.h"
 
-#include "LaunchParams.h"
-#include "OctTree.h"
-#include "TriangleMeshSbtData.h"
-#include "CudaHelper.h"
+#include "Models/LaunchParams.h"
+#include "Models/TriangleMeshSbtData.h"
 #include <chrono>
 
 extern "C" char embedded_visualizer_code[];
@@ -71,8 +69,8 @@ void SonelMapVisualizer::init() {
 	std::cout << GDT_TERMINAL_DEFAULT;
 }
 
-void SonelMapVisualizer::setSonelArray(std::vector<std::vector<Sonel>>* sonelArray) {
-	this->sonelArray = sonelArray;
+void SonelMapVisualizer::setSonelArray(std::vector<std::vector<Sonel>>* newSonelArray) {
+	this->sonelArray = newSonelArray;
 	timestep = 0;
 }
 
@@ -113,7 +111,7 @@ void SonelMapVisualizer::createRenderModule() {
 		"Failed to create render module."
 	);
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! does all setup for the raygen program(s) we are going to use */
@@ -144,7 +142,7 @@ void SonelMapVisualizer::createRenderRaygenPrograms() {
 		"Failed to create raygen program."
 	);
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! does all setup for the miss program(s) we are going to use */
@@ -179,7 +177,7 @@ void SonelMapVisualizer::createRenderMissPrograms() {
 		"Failed to create miss programs."
 	);
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! does all setup for the hitgroup program(s) we are going to use */
@@ -218,7 +216,7 @@ void SonelMapVisualizer::createRenderHitgroupPrograms() {
 		"Failed to create closest and any hit programs."
 	);
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 /*! assembles the full pipeline of all programs */
@@ -236,8 +234,8 @@ void SonelMapVisualizer::createRenderPipeline() {
 
 	char log[2048];
 	size_t sizeof_log = sizeof(log);
-	PING;
-	PRINT(programGroups.size());
+	PING
+	PRINT(programGroups.size())
 
 	optixCheck(
 		optixPipelineCreate(
@@ -255,7 +253,7 @@ void SonelMapVisualizer::createRenderPipeline() {
 	);
 
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 
 	optixCheck(
 		optixPipelineSetStackSize(
@@ -279,16 +277,16 @@ void SonelMapVisualizer::createRenderPipeline() {
 	);
 
 	if (sizeof_log > 1)
-		PRINT(log);
+		PRINT(log)
 }
 
 void SonelMapVisualizer::buildRenderRaygenRecords() {
 	std::vector<RaygenRecord> raygenRecords;
 
-	for (int i = 0; i < renderRaygenPgs.size(); i++) {
-		RaygenRecord rec;
+	for (auto & renderRaygenPg : renderRaygenPgs) {
+		RaygenRecord rec = {};
 		optixCheck(
-			optixSbtRecordPackHeader(renderRaygenPgs[i], &rec),
+			optixSbtRecordPackHeader(renderRaygenPg, &rec),
 			"SonelMapVisualizer",
 			"Failed to record pack header (render raygen pgs)."
 		);
@@ -302,10 +300,10 @@ void SonelMapVisualizer::buildRenderRaygenRecords() {
 
 void SonelMapVisualizer::buildRenderMissRecords() {
 	std::vector<MissRecord> missRecords;
-	for (int i = 0; i < renderMissPgs.size(); i++) {
-		MissRecord rec;
+	for (auto & renderMissPg : renderMissPgs) {
+		MissRecord rec = {};
 		optixCheck(
-			optixSbtRecordPackHeader(renderMissPgs[i], &rec),
+			optixSbtRecordPackHeader(renderMissPg, &rec),
 			"SonelMapVisualizer",
 			"Failed to record pack header (render miss pgs)."
 		);
@@ -322,14 +320,14 @@ void SonelMapVisualizer::buildRenderMissRecords() {
 
 void SonelMapVisualizer::buildRenderHitgroupRecords() {
 	const Model* model = cudaScene.getModel();
-	int meshSize = model->meshes.size();
+	auto meshSize = static_cast<uint32_t>(model->meshes.size());
 
 
 	std::vector<HitgroupRecord> hitgroupRecords;
-	for (int meshId = 0; meshId < meshSize; meshId++) {
+	for (uint32_t meshId = 0; meshId < meshSize; meshId++) {
 		TriangleMesh* mesh = model->meshes[meshId];
 
-		for (int rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
+		for (uint32_t rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
 			HitgroupRecord rec;
 
 			optixCheck(
@@ -347,8 +345,8 @@ void SonelMapVisualizer::buildRenderHitgroupRecords() {
 		}
 	}
 
-	for (int sonelId = 0; sonelId < cudaScene.getSonelSize(); sonelId++) {
-		for (int rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
+	for (uint32_t sonelId = 0; sonelId < static_cast<uint32_t>(cudaScene.getSonelSize()); sonelId++) {
+		for (uint32_t rayId = 0; rayId < RAY_TYPE_COUNT; rayId++) {
 			HitgroupRecord rec;
 
 			optixCheck(

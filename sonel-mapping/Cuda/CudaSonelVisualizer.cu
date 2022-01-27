@@ -18,13 +18,12 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 
-#include "LaunchParams.h"
-#include "Sonel.h"
-#include "OctTree.h"
+#include "../SonelMapping/Models/LaunchParams.h"
+#include "../SonelMapping/Models/Sonel.h"
 #include "CudaHelper.h"
 #include "CudaRandom.h"
-#include "TriangleMeshSbtData.h"
-#include "../common/gdt/gdt/math/vec.h"
+#include "../SonelMapping/Models/TriangleMeshSbtData.h"
+#include "../../common/gdt/gdt/math/vec.h"
 
 using namespace gdt;
 

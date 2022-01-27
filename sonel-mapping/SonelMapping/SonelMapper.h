@@ -17,10 +17,9 @@
 #pragma once
 
 // our own classes, partly shared between host and device
-#include "CudaBuffer.h"
-#include "SonelMap.h"
-#include "CudaSonelMapperParams.h"
-#include "OctTree.h"
+#include "../Cuda/CudaBuffer.h"
+#include "Models/SonelMap.h"
+#include "../Cuda/CudaSonelMapperParams.h"
 #include "OptixSetup.h"
 #include "OptixScene.h"
 
@@ -99,6 +98,5 @@ class SonelMapper {
 		uint32_t frequencySize;
 		bool hasCalculatedSonelMap = false;
 
-		std::vector<OctTree<Sonel>> octTrees;
 		std::vector<std::vector<Sonel>> sonelArrays;
 };

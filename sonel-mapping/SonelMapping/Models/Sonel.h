@@ -3,7 +3,6 @@
 #include "gdt/math/box.h"
 #include <map>
 #include <vector>
-#include "OctTree.h"
 
 struct Sonel {
 	gdt::vec3f position;

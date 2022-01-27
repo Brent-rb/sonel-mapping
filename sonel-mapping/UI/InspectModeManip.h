@@ -2,7 +2,7 @@
 
 #include "CameraFrameManip.h"
 
-class CameraFrame;
+struct CameraFrame;
 
 // ------------------------------------------------------------------
 /*! camera manipulator with the following traits

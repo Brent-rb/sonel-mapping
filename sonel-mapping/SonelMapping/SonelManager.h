@@ -3,7 +3,7 @@
 #include "OptixScene.h"
 #include "SonelMapper.h"
 #include "SonelMapVisualizer.h"
-#include "Camera.h"
+#include "../UI/Camera.h"
 
 class SonelManager {
 public:

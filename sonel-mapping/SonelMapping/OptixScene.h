@@ -1,8 +1,8 @@
 #pragma once
-#include "CudaBuffer.h"
-#include "TriangleMeshSbtData.h"
-#include "Model.h"
-#include "Sonel.h"
+#include "../Cuda/CudaBuffer.h"
+#include "Models/TriangleMeshSbtData.h"
+#include "Models/Model.h"
+#include "Models/Sonel.h"
 
 class OptixScene {
 public:
@@ -21,7 +21,7 @@ public:
 
 	void setSonels(std::vector<Sonel>* newSonels, float searchRadius);
 	std::vector<Sonel>* getSonels() const;
-	CUdeviceptr getSonelDevicePointer(int sonelIndex) const;
+	CUdeviceptr getSonelDevicePointer(uint32_t sonelIndex) const;
 
 	const OptixTraversableHandle& getGeoTraversable() const;
 	const OptixTraversableHandle& getAabbTraversable() const;

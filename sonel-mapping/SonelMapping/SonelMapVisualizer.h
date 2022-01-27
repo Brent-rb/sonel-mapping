@@ -1,10 +1,10 @@
 #pragma once
 
 // our own classes, partly shared between host and device
-#include "CudaBuffer.h"
-#include "LaunchParams.h"
-#include "Camera.h"
-#include "Model.h"
+#include "../Cuda/CudaBuffer.h"
+#include "Models/LaunchParams.h"
+#include "../UI/Camera.h"
+#include "Models/Model.h"
 #include "OptixSetup.h"
 #include "OptixScene.h"
 
@@ -18,7 +18,7 @@ public:
 	void init();
 
     void setFrequencySize(uint32_t size);
-	void setSonelArray(std::vector<std::vector<Sonel>>* sonelArray);
+	void setSonelArray(std::vector<std::vector<Sonel>>* newSonelArray);
 
 	/*! render one frame */
 	void render();

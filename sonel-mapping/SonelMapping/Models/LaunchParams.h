@@ -17,7 +17,6 @@
 #pragma once
 
 #include "gdt/math/vec.h"
-#include "OctTree.h"
 #include "Sonel.h"
 
 // for this simple example, we have a single ray type

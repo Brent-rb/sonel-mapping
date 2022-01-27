@@ -1,5 +1,4 @@
 #include "OptixScene.h"
-#include "CudaHelper.h"
 
 OptixScene::OptixScene(const OptixDeviceContext& optixContext): 
 	optixContext(optixContext), 
@@ -79,7 +78,7 @@ void OptixScene::setModel(Model* newModel) {
 	clearMeshBuffers();
 
 	this->model = newModel;
-	meshSize = newModel->meshes.size();
+	meshSize = static_cast<uint32_t>(newModel->meshes.size());
 
 	meshBuffersInvalid = true;
 }
@@ -93,7 +92,7 @@ void OptixScene::setSonels(std::vector<Sonel>* newSonels, float searchRadius) {
 	printf("Setting newSonels %llu\n", newSonels->size());
 
 	this->sonels = newSonels;
-	sonelSize = newSonels->size();
+	sonelSize = static_cast<uint32_t>(newSonels->size());
 	radius = searchRadius;
 
 	sonelBuffersInvalid = true;
@@ -103,7 +102,7 @@ std::vector<Sonel>* OptixScene::getSonels() const {
 	return sonels;
 }
 
-CUdeviceptr OptixScene::getSonelDevicePointer(int sonelIndex) const {
+CUdeviceptr OptixScene::getSonelDevicePointer(uint32_t sonelIndex) const {
 	return sonelBuffer.getCuDevicePointer() + (sonelIndex * sizeof(Sonel));
 }
 
@@ -141,7 +140,7 @@ void OptixScene::fill(const uint32_t meshIndex, TriangleMeshSbtData& triangleDat
 
 void OptixScene::clearMeshBuffers() {
 	printf("Clear mesh buffers\n");
-	for (int meshId = 0; meshId < meshSize; meshId++) {
+	for (uint32_t meshId = 0; meshId < meshSize; meshId++) {
 		// upload the model to the device: the builder
 		TriangleMesh& mesh = *model->meshes[meshId];
 
@@ -188,7 +187,7 @@ void OptixScene::prepareSonelBuffers() {
 }
 
 void OptixScene::buildTriangleInputs() {	
-	for (int meshId = 0; meshId < meshSize; meshId++) {
+	for (uint32_t meshId = 0; meshId < meshSize; meshId++) {
 		// upload the model to the device: the builder
 		TriangleMesh& mesh = *model->meshes[meshId];
 
@@ -234,17 +233,17 @@ void OptixScene::buildTriangleInputs() {
 
 
 void OptixScene::buildTextures() {
-	int numTextures = (int)model->textures.size();
+	auto numTextures = static_cast<uint32_t>(model->textures.size());
 
 	textureArrays.resize(numTextures);
 	textureObjects.resize(numTextures);
 
-	for (int textureId = 0; textureId < numTextures; textureId++) {
+	for (uint32_t textureId = 0; textureId < numTextures; textureId++) {
 		auto texture = model->textures[textureId];
 
 		cudaResourceDesc res_desc = {};
 
-		cudaChannelFormatDesc channel_desc;
+		cudaChannelFormatDesc channel_desc = {};
 		int32_t width = texture->resolution.x;
 		int32_t height = texture->resolution.y;
 		int32_t numComponents = 4;
@@ -304,7 +303,7 @@ void OptixScene::buildSonelAabbInputs() {
     std::vector<OptixAabb> tempAabbs;
     tempAabbs.resize(sonelSize);
 
-	for (int sonelId = 0; sonelId < sonelSize; sonelId++) {
+	for (uint32_t sonelId = 0; sonelId < sonelSize; sonelId++) {
 		// upload the model to the device: the builder
 		const Sonel& sonel = (*sonels)[sonelId];
 
@@ -436,7 +435,7 @@ OptixTraversableHandle OptixScene::buildTraversable(const OptixDeviceContext& op
 			optixContext,
 			&accelOptions,
 			buildInputs.data(),
-			buildInputs.size(), // num_build_inputs
+			static_cast<uint32_t>(buildInputs.size()),
 			&bufferSizes
 		),
 		"CudaScene",
