@@ -2,15 +2,15 @@
 // Created by brent on 27/01/2022.
 //
 
-#include "SonelMapper2.h"
+#include "SonelMapper.h"
 
 extern "C" char embedded_mapper_code[];
 
-SonelMapper2::SonelMapper2(const OptixSetup &optixSetup, const OptixScene &optixScene): SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_mapper_code, optixSetup, optixScene, 1, 1, 1) {
+SonelMapper::SonelMapper(const OptixSetup &optixSetup, const OptixScene &optixScene): SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_mapper_code, optixSetup, optixScene, 1, 1, 1) {
 	hitAhEnabled = true;
 }
 
-void SonelMapper2::initialize(SonelMapperConfig2 config) {
+void SonelMapper::initialize(SonelMapperConfig config) {
 	sonelMap.setSoundSources(config.soundSources);
 	sonelMap.duration = config.echogramDuration;
 	sonelMap.soundSpeed = config.soundSpeed;
@@ -25,7 +25,7 @@ void SonelMapper2::initialize(SonelMapperConfig2 config) {
 	init();
 }
 
-void SonelMapper2::execute() {
+void SonelMapper::execute() {
 	sonelArrays.resize(static_cast<uint64_t>(sonelMap.duration / sonelMap.timestep) + 1);
 
 	for (uint32_t sourceIndex = 0; sourceIndex < sonelMap.soundSourceSize; sourceIndex++) {
@@ -48,30 +48,30 @@ void SonelMapper2::execute() {
 	}
 }
 
-const char *SonelMapper2::getLaunchParamsName() {
+const char *SonelMapper::getLaunchParamsName() {
 	return "params";
 }
 
-void SonelMapper2::configureRaygenProgram(
+void SonelMapper::configureRaygenProgram(
 		uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc
 ) {
 	desc.raygen.entryFunctionName = "__raygen__generateSonelMap";
 }
 
-void SonelMapper2::configureMissProgram(
+void SonelMapper::configureMissProgram(
 		uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc
 ) {
 	desc.miss.entryFunctionName = "__miss__sonelRadiance";
 }
 
-void SonelMapper2::configureHitProgram(
+void SonelMapper::configureHitProgram(
 		uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc
 ) {
 	desc.hitgroup.entryFunctionNameCH = "__closesthit__sonelRadiance";
 	desc.hitgroup.entryFunctionNameAH = "__anyhit__sonelRadiance";
 }
 
-void SonelMapper2::createHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
+void SonelMapper::createHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
 	const Model* model = optixScene.getModel();
 	unsigned int numObjects = static_cast<unsigned int>(model->meshes.size());
 
@@ -93,7 +93,7 @@ void SonelMapper2::createHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &
 }
 
 
-void SonelMapper2::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex) {
+void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex) {
 	SoundFrequency& frequency = sonelMap.soundSources[sourceIndex].frequencies[fIndex];
 
 	sonelMap.cudaDownload(sonelMapDevicePtr, sourceIndex, fIndex);
@@ -124,11 +124,11 @@ void SonelMapper2::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourc
 	printf("[SonelMapper] Sonels added %llu\n", sonelAmount);
 }
 
-const SonelMapData &SonelMapper2::getSonelMapData() const {
+const SonelMapData &SonelMapper::getSonelMapData() const {
 	return sonelMap;
 }
 
-std::vector<std::vector<Sonel>> *SonelMapper2::getSonelArrays() {
+std::vector<std::vector<Sonel>> *SonelMapper::getSonelArrays() {
 	return &sonelArrays;
 }
 
