@@ -10,5 +10,6 @@ struct Sonel {
 	gdt::vec3f incidence;
 	float energy;
 	float time;
-	float frequency;
+	uint32_t frequency;
+    uint16_t frequencyIndex;
 };

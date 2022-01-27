@@ -9,12 +9,15 @@
 #include "CudaRandom.h"
 #include "TriangleMeshSbtData.h"
 
+#define DIFFUSE_BOUNCE_PROB 0.45f
+#define SPECULAR_BOUNCE_PROD 0.45f
+
 extern "C" __constant__ CudaSonelMapperParams params;
 
 class PerRayData {
 public:
 	__device__ __host__ PerRayData(const CudaRandom& random, const uint32_t index, const float energy):
-		random(random), index(index), dataDepth(0), depth(0), distance(0.0f), energy(energy), specularBounce(false) {
+            random(random), index(index), dataDepth(0), depth(0), distance(0.0f), energies(energy), specularBounce(false) {
 
 	}
 
@@ -29,7 +32,7 @@ public:
 	uint32_t maxDepth;
 
 	float distance;
-	float energy;
+	float energies;
 
 	bool specularBounce;
 };
@@ -57,12 +60,12 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 	const gdt::vec3f& A = sbtData.vertex[index.x];
 	const gdt::vec3f& B = sbtData.vertex[index.y];
 	const gdt::vec3f& C = sbtData.vertex[index.z];
-	gdt::vec3f Ng = gdt::cross(B - A, C - A);
-	gdt::vec3f Ns = (sbtData.normal)
+	gdt::vec3f geometryNormal = gdt::cross(B - A, C - A);
+	gdt::vec3f shadingNormal = (sbtData.normal)
 		? ((1.f - u - v) * sbtData.normal[index.x]
 			+ u * sbtData.normal[index.y]
 			+ v * sbtData.normal[index.z])
-		: Ng;
+		: geometryNormal;
 
 	// ------------------------------------------------------------------
 	// face-forward and normalize normals
@@ -70,12 +73,13 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 	const gdt::vec3f rayDir = optixGetWorldRayDirection();
 	const gdt::vec3f rayOrigin = optixGetWorldRayOrigin();
 
-	if (dot(rayDir, Ng) > 0.f) Ng = -Ng;
-	Ng = normalize(Ng);
+	if (dot(rayDir, geometryNormal) > 0.f)
+        geometryNormal = -geometryNormal;
+    geometryNormal = normalize(geometryNormal);
 
-	if (dot(Ng, Ns) < 0.f)
-		Ns -= 2.f * dot(Ng, Ns) * Ng;
-	Ns = normalize(Ns);
+	if (dot(geometryNormal, shadingNormal) < 0.f)
+        shadingNormal -= 2.f * dot(geometryNormal, shadingNormal) * geometryNormal;
+    shadingNormal = normalize(shadingNormal);
 
 
 	// ------------------------------------------------------------------
@@ -89,8 +93,9 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 	uint32_t sonelIndex = (prd.index * prd.maxDepth) + prd.dataDepth;
 
 	Sonel& sonel = prd.sonels[sonelIndex];
-	float bounceProbality = prd.random.randomf();
-	if (bounceProbality > 0.90f || prd.depth + 1 == prd.maxDepth) {
+	float bounceProbability = prd.random.randomF();
+	if (bounceProbability > (DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD) ||
+        prd.depth + 1 == prd.maxDepth) {
 		// Absorbed
 		sonel.time = 0;
 		sonel.energy = 0;
@@ -101,17 +106,19 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 	prd.distance += length(surfPos - rayOrigin);
 
 	prd.depth += 1;
-	if (bounceProbality < 0.45f) {
+	if (bounceProbability < DIFFUSE_BOUNCE_PROB) {
 		prd.dataDepth += 1;
-		sonel.energy = prd.energy;
+        sonel.frequency = params.sonelMapData->frequencies[params.globalFrequencyIndex];
+        sonel.frequencyIndex = params.globalFrequencyIndex;
+		sonel.energy = prd.energies;
 		sonel.position = surfPos;
 		sonel.time = prd.distance / params.sonelMapData->soundSpeed;
 		sonel.incidence = rayDir;
 
-		prd.random.randomVec3fHemi(Ns, newRayDirection);
+		prd.random.randomVec3fHemi(shadingNormal, newRayDirection);
 	}
 	else {
-		newRayDirection = Ns * 2 * dot(Ns, rayDir) - rayDir;
+		newRayDirection = shadingNormal * 2 * dot(shadingNormal, rayDir) - rayDir;
 	}
 
 	// the values we store the PRD pointer in:
@@ -122,11 +129,11 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 		params.traversable,
 		surfPos,
 		newRayDirection,
-		1e-3f,      // tmin
-		1e20f,  // tmax
-		0.0f,       // rayTime
+		1e-3f, // tmin
+		1e20f, // tmax
+		0.0f,  // rayTime
 		OptixVisibilityMask(255),
-		OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+		OPTIX_RAY_FLAG_DISABLE_ANYHIT,
 		0,            // SBT offset
 		1,            // SBT stride
 		0,            // missSBTIndex 
@@ -162,7 +169,7 @@ extern "C" __global__ void __raygen__generateSonelMap() {
 	CudaRandom random = CudaRandom(sonelIndex, 0, 0);
 
 	SoundSource& soundSource = params.sonelMapData->soundSources[params.soundSourceIndex];
-	SoundFrequency& soundFrequency = soundSource.frequencies[params.frequencyIndex];
+	SoundFrequency& soundFrequency = soundSource.frequencies[params.localFrequencyIndex];
 
 	
 	float& decibels = soundFrequency.decibels[decibelIndex];

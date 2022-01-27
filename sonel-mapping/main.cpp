@@ -25,7 +25,6 @@
 struct Scene {
 	Model* model;
 	Camera camera;
-	QuadLight light;
 	std::vector<SoundSource> soundSources;
 	int frequencies;
 	float echogramDuration;
@@ -35,7 +34,7 @@ struct Scene {
 
 Scene loadSponza();
 
-extern "C" int main(int ac, char** av) {
+extern "C" int main(int argC, char** argV) {
 	try {
 		Scene scene = loadSponza();
 
@@ -48,7 +47,7 @@ extern "C" int main(int ac, char** av) {
 			scene.echogramDuration,
 			scene.soundSpeed,
 			scene.earSize,
-			scene.frequencies
+			static_cast<uint32_t>(scene.frequencies)
 		};
 
 		MainWindow* window = new MainWindow(
@@ -64,7 +63,6 @@ extern "C" int main(int ac, char** av) {
 	}
 	catch (std::runtime_error& e) {
 		std::cout << GDT_TERMINAL_RED << "FATAL ERROR: " << e.what() << GDT_TERMINAL_DEFAULT << std::endl;
-		std::cout << "Did you forget to copy sponza.obj and sponza.mtl into your sonel-mapping/models directory?" << std::endl;
 		exit(1);
 	}
 
@@ -72,7 +70,7 @@ extern "C" int main(int ac, char** av) {
 }
 
 Scene loadSponza() {
-	Model* model = loadObj("../models/sponza.obj");
+	Model* model = loadObj("../../models/sponza.obj");
 
 	Camera camera = {
 		/*from*/vec3f(0, 150, model->bounds.center().z),
@@ -84,7 +82,7 @@ Scene loadSponza() {
 	std::vector<SoundFrequency> frequencies1;
 	std::vector<SoundFrequency> frequencies2;
 
-	SoundFrequency frequency1(1000, 1000000, 6), frequency2(2000, 1000000, 6), frequency3(3000, 1000000, 6), frequency4(4000, 1000000, 6);
+	SoundFrequency frequency1(1000, 1000000, 8), frequency2(2000, 1000000, 8), frequency3(4000, 1000000, 8), frequency4(8000, 1000000, 8);
 	std::vector<float> decibels1, decibels2, decibels3, decibels4;
 	for (int i = 0; i < 10; i++) {
 		decibels2.push_back(0.0);
@@ -137,7 +135,6 @@ Scene loadSponza() {
 	return {
 		model,
 		camera,
-		light,
 		soundSources,
 		4,
 		6.0f, // Seconds

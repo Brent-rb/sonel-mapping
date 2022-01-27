@@ -19,12 +19,12 @@
 #include <curand_kernel.h>
 
 #include "LaunchParams.h"
-#include "gdt/random/random.h"
 #include "Sonel.h"
 #include "OctTree.h"
 #include "CudaHelper.h"
 #include "CudaRandom.h"
 #include "TriangleMeshSbtData.h"
+#include "../common/gdt/gdt/math/vec.h"
 
 using namespace gdt;
 
@@ -40,8 +40,8 @@ extern "C" __constant__ LaunchParams launchParams;
 struct PerRayData {
 	CudaRandom random;
 
-	float energy;
-	uint16_t hits;
+	float energies[16];
+	uint32_t hits[16];
 	vec3f pixelColor;
 };
 
@@ -57,12 +57,11 @@ struct PerRayData {
 
 
 extern "C" __global__ void __closesthit__radiance() {
+    const float3 rayDirectionOptix = optixGetWorldRayDirection();
+    gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
+
 	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*) optixGetSbtDataPointer();
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
-
-	if (sbtData.sonel != nullptr) {
-		return;	
-	}
 
 	// ------------------------------------------------------------------
 	// gather some basic hit information
@@ -97,35 +96,45 @@ extern "C" __global__ void __closesthit__radiance() {
 		= (1.f - u - v) * sbtData.vertex[index.x]
 		+ u * sbtData.vertex[index.y]
 		+ v * sbtData.vertex[index.z];
-	
-	float energy = 0.0f;
-	float frequencies = 0.0f;
-	int hits = 0;
 
-	// OctTreeResult<Sonel> octTreeHit = launchParams.octTree->get(surfPos);
+    uint32_t u0, u1;
+    packPointer(&prd, u0, u1);
 
-	/*
-	for (int i = 0; i < octTreeHit.currentItems; i++) {
-		Sonel* sonel = &(octTreeHit.data[i].data);
-		
-		float distance = length(surfPos - sonel->position);
-		if (distance < RADIUS) {
-			energy += sonel->energy;
-			frequencies += sonel->frequency;
-			hits++;
-		}
-	}
-	*/
-	
-	
-	if (prd.hits == 0) {
-		prd.pixelColor = vec3f(pixelColor.x, pixelColor.x, pixelColor.x);
-	}
-	else {
-		// printf("Hits: %d, energy: %f\n", prd.hits, prd.energy);
-		prd.pixelColor = vec3f(prd.energy * 100.0f, 0.0 , 0.0f);
-	}
-	
+    optixTrace(
+            launchParams.traversable,
+            surfPos,
+            -rayDirection,
+            0.00001f,    // tmin
+            1.0f,  // tmax
+            0.0f,   // rayTime
+            OptixVisibilityMask(255),
+            OPTIX_RAY_FLAG_NONE,//OPTIX_RAY_FLAG_NONE,
+            RADIANCE_RAY_TYPE,            // SBT offset
+            RAY_TYPE_COUNT,               // SBT stride
+            RADIANCE_RAY_TYPE,            // missSBTIndex
+            u0, u1
+    );
+
+    // printf("[CudaSonelVisualizer] Visualising\n");
+
+    float energy = 0;
+    float frequency = 0;
+    // printf("Hits: %d, energies: %f\n", prd.hits, prd.energies);
+
+    for (int i = 0; i < launchParams.frequencySize; i++) {
+        energy += prd.energies[i];
+        frequency += ((i + 1) * 1.0f) / prd.energies[i];
+    }
+    frequency *= energy;
+
+
+    // printf("[CudaSonelVisualizer] Setting pixel\n");
+    if (energy < 0.001) {
+        prd.pixelColor = vec3f(pixelColor.x, pixelColor.y, pixelColor.z);
+    }
+    else {
+        prd.pixelColor = vec3f(energy * 100.0f, 0.0, frequency / (launchParams.frequencySize * 1.0f));
+    }
 }
 
 extern "C" __global__ void __anyhit__radiance() {
@@ -134,48 +143,33 @@ extern "C" __global__ void __anyhit__radiance() {
 
 	// printf("AnyHit \n");
 	if (sbtData.sonel != nullptr) {
-		// printf("AnyHit Sonel Frequency: %f Energy: %f\n", sbtData.sonel->frequency, sbtData.sonel->energy);
-		prd.energy += sbtData.sonel->energy;
-		prd.hits++;
+		// printf("AnyHit Sonel Frequency: %f Energy: %f\n", sbtData.sonel->frequency, sbtData.sonel->energies);
+		prd.energies[sbtData.sonel->frequencyIndex] += sbtData.sonel->energy;
+		prd.hits[sbtData.sonel->frequencyIndex]++;
 		optixIgnoreIntersection();
 	}
+    else {
+        optixIgnoreIntersection();
+    }
 }
 
 extern "C" __global__ void __intersection__radiance() {
-	// printf("RayOrigin\n");
-	const float3 rayOriginOptix = optixGetObjectRayOrigin();
-
-	// printf("RayDir\n");
-	const float3 rayDirectionOptix = optixGetObjectRayDirection();
-	gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
-	gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
-
 	const TriangleMeshSbtData* sbtData = (const TriangleMeshSbtData*)optixGetSbtDataPointer();
-	const uint32_t primitiveIndex = optixGetPrimitiveIndex();
 	const Sonel* sonelPtr = sbtData->sonel;
 	
 	if (sonelPtr != nullptr) {
-		const gdt::vec3f center = sonelPtr->position;
-		// printf("[Intersection] Sonel AABB: (%f, %f, %f)\n", center.x, center.y, center.z);
+        const float3 rayOriginOptix = optixGetWorldRayOrigin();
+        const float3 rayDirectionOptix = optixGetWorldRayDirection();
+        gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
+        gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
 
-		gdt::vec3f oc = rayOrigin - center;
-		float a = gdt::dot(rayDirection, rayDirection);
-		float b = 2.0 * gdt::dot(oc, rayDirection);
-		float c = gdt::dot(oc, oc) - RADIUS * RADIUS;
-		float discriminant = b * b - 4 * a * c;
+        const gdt::vec3f center = sonelPtr->position;
+        const float length = gdt::length(center - rayOrigin);
+        // printf("[Intersection] Sonel(%.2f, %.2f, %.2f), Origin(%.2f, %.2f, %.2f) distance %.2f\n", center.x, center.y, center.z, rayOrigin.x, rayOrigin.y, rayOrigin.z, length);
 
-		if (discriminant < 0) {
-			// printf("[Intersection] Sonel Ignored: (%f, %f, %f)\n", center.x, center.y, center.z);
-			// optixIgnoreIntersection();
-		}
-		else {
-			// printf("[Intersection] Sonel AABB: (%f, %f, %f)\n", center.x, center.y, center.z);
-			float closestT = (-b - sqrt(discriminant)) / (2.0 * a);
-			optixReportIntersection(closestT, 0);
-		}
-	}
-	else {
-		// printf("[Intersection] Triangle\n");
+		if (length < RADIUS) {
+            optixReportIntersection(0.001f, 0);
+        }
 	}
 }
 
@@ -202,7 +196,6 @@ extern "C" __global__ void __raygen__renderFrame() {
 	const int screenX = optixGetLaunchIndex().x;
 	const int screenY = optixGetLaunchIndex().y;
 	const int frameX = launchParams.frame.size.x;
-	const int frameY = launchParams.frame.size.y;
 	const auto& camera = launchParams.camera;
 
 	const int randX = (screenX);
@@ -211,8 +204,9 @@ extern "C" __global__ void __raygen__renderFrame() {
 	curandState_t curandState;
 	curand_init((randX + randY), 0, 0, &curandState);
 	PerRayData prd;
-	prd.energy = 0;
-	prd.hits = 0;
+
+    memset(prd.energies, 0, sizeof(float) * launchParams.frequencySize);
+    memset(prd.hits, 0, sizeof(uint32_t) * launchParams.frequencySize);
 	prd.random.init((randX + randY), 0, 0);
 	prd.pixelColor = vec3f(0.f);
 
@@ -221,10 +215,8 @@ extern "C" __global__ void __raygen__renderFrame() {
 	packPointer(&prd, u0, u1);
 
 
-	vec3f pixelColor = 0.f;
-
 	// normalized screen plane position, in [0,1]^2
-	const vec2f screen(vec2f(screenX + prd.random.randomf(), screenY + prd.random.randomf())
+	const vec2f screen(vec2f(screenX + prd.random.randomF(), screenY + prd.random.randomF())
 		/ vec2f(launchParams.frame.size));
 
 	// generate ray direction
@@ -240,17 +232,16 @@ extern "C" __global__ void __raygen__renderFrame() {
 		1e20f,  // tmax
 		0.0f,   // rayTime
 		OptixVisibilityMask(255),
-		OPTIX_RAY_FLAG_NONE,//OPTIX_RAY_FLAG_NONE,
+        OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
 		RADIANCE_RAY_TYPE,            // SBT offset
 		RAY_TYPE_COUNT,               // SBT stride
 		RADIANCE_RAY_TYPE,            // missSBTIndex 
 		u0, u1
 	);
-	pixelColor += prd.pixelColor;
 
-	const int r = int(255.99f * min(pixelColor.x, 1.f));
-	const int g = int(255.99f * min(pixelColor.y, 1.f));
-	const int b = int(255.99f * min(pixelColor.z, 1.f));
+	const int r = int(255.99f * min(prd.pixelColor.x, 1.f));
+	const int g = int(255.99f * min(prd.pixelColor.y, 1.f));
+	const int b = int(255.99f * min(prd.pixelColor.z, 1.f));
 
 	// convert to 32-bit rgba value (we explicitly set alpha to 0xff
 	// to make stb_image_write happy ...

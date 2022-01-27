@@ -14,12 +14,12 @@ public:
 	void buildTriangles();
 	void buildSonels();
 
-	uint32_t getSonelSize();
+	uint32_t getSonelSize() const;
 
-	void setModel(Model* model);
+	void setModel(Model* newModel);
 	Model* getModel() const;
 
-	void setSonels(std::vector<Sonel>* sonels, float searchRadius);
+	void setSonels(std::vector<Sonel>* newSonels, float searchRadius);
 	std::vector<Sonel>* getSonels() const;
 	CUdeviceptr getSonelDevicePointer(int sonelIndex) const;
 
@@ -76,7 +76,7 @@ protected:
 	std::vector<CudaBuffer> indexBuffer;
 	
 	// Sonel data
-	std::vector<CudaBuffer> sonelAabbBuffer;
+	CudaBuffer sonelAabbBuffer;
 	CudaBuffer sonelBuffer;
 	float radius = 0.5f;
 

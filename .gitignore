@@ -455,3 +455,11 @@ FodyWeavers.xsd
 CMakeFiles/3.21.3
 CMakeFiles/3.22.1
 CMakeFiles
+
+x64
+Release
+Debug
+.vs
+cmake-build-debug-visual-studio-2019/.cmake
+cmake-build-debug-visual-studio-2019
+cmake-build-release-visual-studio-2019

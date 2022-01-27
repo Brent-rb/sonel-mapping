@@ -38,7 +38,7 @@ struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord {
 SonelMapVisualizer::SonelMapVisualizer(
 	const OptixSetup& optixSetup,
 	OptixScene& cudaScene
-): optixSetup(optixSetup), cudaScene(cudaScene), sonelMap(nullptr), sonelArray(nullptr) {
+): optixSetup(optixSetup), cudaScene(cudaScene), sonelArray(nullptr) {
 	
 }
 
@@ -69,11 +69,6 @@ void SonelMapVisualizer::init() {
 	std::cout << GDT_TERMINAL_GREEN;
 	std::cout << "[SonelMapVisualizer] Optix 7 Sample fully set up" << std::endl;
 	std::cout << GDT_TERMINAL_DEFAULT;
-}
-
-void SonelMapVisualizer::setSonelMap(std::vector<OctTree<Sonel>>* sonelMap) {
-	this->sonelMap = sonelMap;
-	timestep = 0;
 }
 
 void SonelMapVisualizer::setSonelArray(std::vector<std::vector<Sonel>>* sonelArray) {
@@ -478,10 +473,9 @@ void SonelMapVisualizer::uploadSonelMapSnapshot() {
 	printf("[SonelMapVisualizer] Uploading took %lf ms\n", duration.count() / 1000.0);
 
 	timestep++;
-	if (timestep == sonelMap->size()) {
+	if (timestep == sonelArray->size()) {
 		timestep = 0;
 	}
-
 }
 
 /*! download the rendered color buffer */
@@ -489,4 +483,8 @@ void SonelMapVisualizer::downloadPixels(uint32_t h_pixels[]) {
 	uint64_t bufferSize = (uint64_t)launchParams.frame.size.x * (uint64_t)launchParams.frame.size.y;
 
 	colorBuffer.download(h_pixels, bufferSize);
+}
+
+void SonelMapVisualizer::setFrequencySize(uint32_t size) {
+    launchParams.frequencySize = size;
 }

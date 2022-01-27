@@ -71,15 +71,15 @@ void OptixScene::buildSonels() {
 	buildSonelAabbAccelStructure();
 }
 
-uint32_t OptixScene::getSonelSize() {
+uint32_t OptixScene::getSonelSize() const {
 	return sonelSize;
 }
 
-void OptixScene::setModel(Model* model) {
+void OptixScene::setModel(Model* newModel) {
 	clearMeshBuffers();
 
-	this->model = model;
-	meshSize = model->meshes.size();
+	this->model = newModel;
+	meshSize = newModel->meshes.size();
 
 	meshBuffersInvalid = true;
 }
@@ -88,12 +88,12 @@ Model* OptixScene::getModel() const {
 	return model;
 }
 
-void OptixScene::setSonels(std::vector<Sonel>* sonels, float searchRadius) {
+void OptixScene::setSonels(std::vector<Sonel>* newSonels, float searchRadius) {
 	clearSonelBuffers();
-	printf("Setting sonels %d\n", sonels->size());
+	printf("Setting newSonels %llu\n", newSonels->size());
 
-	this->sonels = sonels;
-	sonelSize = sonels->size();
+	this->sonels = newSonels;
+	sonelSize = newSonels->size();
 	radius = searchRadius;
 
 	sonelBuffersInvalid = true;
@@ -162,10 +162,7 @@ void OptixScene::clearMeshBuffers() {
 void OptixScene::clearSonelBuffers() {
 	aabbAccelBuffer.tryFree();
 	sonelBuffer.tryFree();
-
-	for (int sonelId = 0; sonelId < sonelSize; sonelId++) {
-		sonelAabbBuffer[sonelId].tryFree();
-	}
+    sonelAabbBuffer.tryFree();
 }
 
 void OptixScene::prepareTriangleBuffers() {
@@ -299,10 +296,13 @@ void OptixScene::buildSonelAabbInputs() {
 		return;
 	}
 
-	float radius2 = radius / 2.0f;
-
 	prepareSonelBuffers();
 	sonelBuffer.allocAndUpload(*sonels);
+    sonelAabbBuffer.alloc(sizeof(OptixAabb) * sonelSize);
+    CUdeviceptr aabbDevicePtr = sonelAabbBuffer.getCuDevicePointer();
+
+    std::vector<OptixAabb> tempAabbs;
+    tempAabbs.resize(sonelSize);
 
 	for (int sonelId = 0; sonelId < sonelSize; sonelId++) {
 		// upload the model to the device: the builder
@@ -310,25 +310,31 @@ void OptixScene::buildSonelAabbInputs() {
 
 		gdt::vec3f min = sonel.position - radius;
 		gdt::vec3f max = sonel.position + radius;
+		tempAabbs[sonelId] = {
+                min.x,
+                min.y,
+                min.z,
+                max.x,
+                max.y,
+                max.z
+        };
 
-		OptixAabb tempAabb = {
-			min.x,
-			min.y,
-			min.z,
-			max.x,
-			max.y,
-			max.z
-		};
+        float lengthMin = gdt::length(min - sonel.position);
+        float lengthMax = gdt::length(max - sonel.position);
+        if (lengthMin > radius * 2 || lengthMax > radius * 2) {
+            printf("Length min, max: %f, %f\n", lengthMin, lengthMax);
+        }
 
-		std::vector<OptixAabb> tempAabbs = { tempAabb };
-
-		sonelAabbBuffer[sonelId].allocAndUpload(tempAabbs);
-		cudaAabbs[sonelId] = sonelAabbBuffer[sonelId].getCuDevicePointer();
+        cudaAabbs[sonelId] = aabbDevicePtr + (sizeof(OptixAabb) * sonelId);
 
 		aabbInputs[sonelId] = {};
 		aabbInputs[sonelId].type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
-		aabbInputs[sonelId].customPrimitiveArray.aabbBuffers = &cudaAabbs[sonelId];
+        if (cudaAabbs[sonelId] % OPTIX_AABB_BUFFER_BYTE_ALIGNMENT > 0) {
+            printf("Misaligned\n");
+        }
+
+		aabbInputs[sonelId].customPrimitiveArray.aabbBuffers = &(cudaAabbs[sonelId]);
 		aabbInputs[sonelId].customPrimitiveArray.strideInBytes = sizeof(OptixAabb);
 		aabbInputs[sonelId].customPrimitiveArray.numPrimitives = 1;
 
@@ -340,6 +346,8 @@ void OptixScene::buildSonelAabbInputs() {
 		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetSizeInBytes = 0;
 		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
 	}
+
+    sonelAabbBuffer.upload(tempAabbs.data(), sonelSize);
 }
 
 void OptixScene::buildTriangleAccelStructure() {
@@ -451,7 +459,7 @@ OptixTraversableHandle OptixScene::buildTraversable(const OptixDeviceContext& op
 	optixCheck(
 		optixAccelBuild(
 			optixContext,
-			0,
+            nullptr,
 			&accelOptions,
 			buildInputs.data(), (int) buildInputs.size(),
 			tempBuffer.getCuDevicePointer(), tempBuffer.sizeInBytes,
@@ -472,7 +480,7 @@ OptixTraversableHandle OptixScene::buildTraversable(const OptixDeviceContext& op
 	optixCheck(
 		optixAccelCompact(
 			optixContext,
-			0,
+			nullptr,
 			traversableHandle,
 			accelBuffer.getCuDevicePointer(), accelBuffer.sizeInBytes,
 			&traversableHandle

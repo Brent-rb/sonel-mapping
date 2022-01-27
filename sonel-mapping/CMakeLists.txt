@@ -70,8 +70,8 @@ add_executable(sonel-mapping
   SonelMapVisualizer.cpp
 
   main.cpp
-  
-  )
+
+        CudaVector.h)
 
 target_link_libraries(
 sonel-mapping

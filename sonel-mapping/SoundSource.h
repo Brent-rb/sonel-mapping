@@ -14,7 +14,6 @@ public:
 		decibels(nullptr), decibelSize(0),
 		sonels(nullptr), sonelSize(sonelAmount* sonelMaxDepth),
 		sonelAmount(sonelAmount), sonelMaxDepth(sonelMaxDepth) {
-
 	}
 
 	SoundFrequency(uint32_t frequency, uint32_t sonelAmount, uint16_t sonelMaxDepth, const std::vector<float>& decibels) :

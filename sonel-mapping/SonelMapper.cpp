@@ -69,7 +69,7 @@ void SonelMapper::init(SonelMapperConfig config) {
 	CudaSonelMapperParams* paramsDevice;
 	cudaMalloc(&paramsDevice, sizeof(CudaSonelMapperParams));
 
-	launchParams.frequencyIndex = 0;
+	launchParams.localFrequencyIndex = 0;
 	launchParams.sonelMapData = sonelMapDevicePtr;
 	launchParamsDevicePtr = paramsDevice;
 
@@ -392,6 +392,7 @@ void SonelMapper::calculate() {
 	}
 
 	for (uint32_t sourceIndex = 0; sourceIndex < sonelMap.soundSourceSize; sourceIndex++) {
+        launchParams.soundSourceIndex = sourceIndex;
 		SoundSource& soundSource = sonelMap.soundSources[sourceIndex];
 		printf("[SonelMapper] Simulating sound source %d\n", sourceIndex);
 
@@ -400,8 +401,9 @@ void SonelMapper::calculate() {
 			printf("\tSimulating frequency (%d, %d)\n", fIndex, frequency.frequency);
 
 			sonelMap.cudaUpload(sonelMapDevicePtr, sourceIndex, fIndex);
-			launchParams.frequencyIndex = fIndex;
-			launchOptix(frequency, sourceIndex);
+			launchParams.localFrequencyIndex = fIndex;
+            launchParams.globalFrequencyIndex = sonelMap.getFrequencyIndex(frequency.frequency);
+			launchOptix(frequency);
 			downloadSonelDataForFrequency(fIndex, sourceIndex);
 			sonelMap.cudaDestroy(sonelMapDevicePtr, sourceIndex, fIndex);
 			cudaSyncCheck("SonelMapper", "Failed to sync.");
@@ -409,18 +411,12 @@ void SonelMapper::calculate() {
 	}
 }
 
-std::vector<OctTree<Sonel>>* SonelMapper::getSonelMap() {
-	return &octTrees;
-}
-
 std::vector<std::vector<Sonel>>* SonelMapper::getSonelArrays() {
 	return &sonelArrays;
 }
 
-void SonelMapper::launchOptix(SoundFrequency& frequency, uint32_t sourceIndex) {
-	launchParams.soundSourceIndex = sourceIndex;
+void SonelMapper::launchOptix(SoundFrequency& frequency) {
 	cudaMemcpy(launchParamsDevicePtr, &launchParams, sizeof(CudaSonelMapperParams), cudaMemcpyHostToDevice);
-	SoundSource& soundSource = sonelMap.soundSources[sourceIndex];
 
 	optixCheck(
 		optixLaunch(
@@ -457,7 +453,7 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 			Sonel& sonel = sonels[i * frequency.sonelMaxDepth + j];
 			sonel.frequency = frequency.frequency;
 
-			// The energy of a sonel is 0 the ray is absorbed and done.
+			// The energies of a sonel is 0 the ray is absorbed and done.
 			if (sonel.energy < 0.00001f) {
 				break;
 			}
@@ -473,4 +469,8 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 	}
 
 	printf("[SonelMapper] Sonels added %d\n", sonelAmount);
+}
+
+const SonelMapData &SonelMapper::getSonelMapData() const {
+    return sonelMap;
 }

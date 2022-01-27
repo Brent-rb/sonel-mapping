@@ -9,7 +9,8 @@ class CudaSonelMapperParams {
 public:
 	SonelMapData* sonelMapData;
 
-	uint32_t frequencyIndex;
+	uint32_t localFrequencyIndex;
+    uint32_t globalFrequencyIndex;
 	uint32_t soundSourceIndex;
 
 	OptixTraversableHandle traversable;

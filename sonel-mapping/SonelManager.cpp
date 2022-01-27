@@ -27,7 +27,7 @@ SonelManager::~SonelManager() {
 
 void SonelManager::calculate() {
 	sonelMapper.calculate();
-	sonelVisualizer.setSonelMap(sonelMapper.getSonelMap());
+    sonelVisualizer.setFrequencySize(sonelMapper.getSonelMapData().frequencySize);
 	sonelVisualizer.setSonelArray(sonelMapper.getSonelArrays());
 }
 

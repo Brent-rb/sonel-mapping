@@ -36,5 +36,7 @@ struct LaunchParams {
 		gdt::vec3f vertical;
 	} camera;
 
+    uint32_t frequencySize;
+
 	OptixTraversableHandle traversable;
 };

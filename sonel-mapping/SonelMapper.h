@@ -44,8 +44,9 @@ class SonelMapper {
 		void init(SonelMapperConfig config);
 		
 		void calculate();
-		std::vector<OctTree<Sonel>>* getSonelMap();
 		std::vector<std::vector<Sonel>>* getSonelArrays();
+
+        const SonelMapData& getSonelMapData() const;
 
 	protected:
 		void createSonelModule();
@@ -57,7 +58,7 @@ class SonelMapper {
 
 		void buildSonelSbt();
 
-		void launchOptix(SoundFrequency& frequency, uint32_t sourceIndex);
+		void launchOptix(SoundFrequency& frequency);
 		void downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex);
 
 	private:

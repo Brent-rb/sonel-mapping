@@ -17,7 +17,7 @@ public:
 
 	void init();
 
-	void setSonelMap(std::vector<OctTree<Sonel>>* sonelMap);
+    void setFrequencySize(uint32_t size);
 	void setSonelArray(std::vector<std::vector<Sonel>>* sonelArray);
 
 	/*! render one frame */
@@ -50,7 +50,6 @@ private:
 protected:
 	const OptixSetup& optixSetup;
 	OptixScene& cudaScene;
-	std::vector<OctTree<Sonel>>* sonelMap;
 	std::vector<std::vector<Sonel>>* sonelArray;
 
 	OptixPipeline renderPipeline;
@@ -72,7 +71,6 @@ protected:
 	CudaBuffer launchParamsBuffer;
 
 	CudaBuffer colorBuffer;
-	CudaBuffer sonelMapBuffer;
 
 	Camera lastSetCamera;
 
