@@ -1,11 +1,11 @@
 #include "MainWindow.h"
 
 MainWindow::MainWindow(
-	const std::string& title,
-	Model* model,
-	const Camera& camera,
-	const float worldScale,
-	SonelMapperConfig config
+		const std::string& title,
+		Model* model,
+		const Camera& camera,
+		const float worldScale,
+		SonelMapperConfig config
 ): GlfCameraWindow(title, camera.from, camera.at, camera.up, worldScale), 
 	sonelManager(model, config) {
 	

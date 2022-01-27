@@ -63,14 +63,12 @@ add_executable(sonel-mapping
 
         SonelMapping/SonelManager.h
         SonelMapping/SonelManager.cpp
-        SonelMapping/SonelMapper.h
-        SonelMapping/SonelMapper.cpp
         SonelMapping/SonelMapVisualizer.h
         SonelMapping/SonelMapVisualizer.cpp
 
   main.cpp
 
-        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h)
+        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h SonelMapping/SmOptixProgram.h SonelMapping/SonelMapper.cpp SonelMapping/SonelMapper.h)
 
 target_link_libraries(
 sonel-mapping

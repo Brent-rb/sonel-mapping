@@ -12,11 +12,11 @@ struct QuadLight;
 class MainWindow: public GlfCameraWindow {
 public:
 	MainWindow(
-		const std::string& title,
-		Model* model,
-		const Camera& camera,
-		const float worldScale,
-		SonelMapperConfig config
+			const std::string& title,
+			Model* model,
+			const Camera& camera,
+			const float worldScale,
+			SonelMapperConfig config
 	);
 
 	virtual void render() override;

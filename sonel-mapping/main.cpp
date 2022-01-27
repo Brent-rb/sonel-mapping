@@ -14,7 +14,6 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "SonelMapping/SonelMapper.h"
 #include "SonelMapping/Models/Model.h"
 #include "UI/MainWindow.h"
 #include "SonelMapping/Models/SoundSource.h"

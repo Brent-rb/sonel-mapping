@@ -1,27 +1,12 @@
-// ======================================================================== //
-// Copyright 2018-2019 Ingo Wald                                            //
-//                                                                          //
-// Licensed under the Apache License, Version 2.0 (the "License");          //
-// you may not use this file except in compliance with the License.         //
-// You may obtain a copy of the License at                                  //
-//                                                                          //
-//     http://www.apache.org/licenses/LICENSE-2.0                           //
-//                                                                          //
-// Unless required by applicable law or agreed to in writing, software      //
-// distributed under the License is distributed on an "AS IS" BASIS,        //
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. //
-// See the License for the specific language governing permissions and      //
-// limitations under the License.                                           //
-// ======================================================================== //
+//
+// Created by brent on 27/01/2022.
+//
 
-#pragma once
+#ifndef SONEL_MAPPING_SONELMAPPER_H
+#define SONEL_MAPPING_SONELMAPPER_H
 
-// our own classes, partly shared between host and device
-#include "../Cuda/CudaBuffer.h"
-#include "Models/SonelMap.h"
+#include "SmOptixProgram.h"
 #include "../Cuda/CudaSonelMapperParams.h"
-#include "OptixSetup.h"
-#include "OptixScene.h"
 
 struct SonelMapperConfig {
 	std::vector<SoundSource>& soundSources;
@@ -31,72 +16,38 @@ struct SonelMapperConfig {
 	uint32_t frequencySize;
 };
 
-class SonelMapper {
-	public:
-		/*! constructor - performs all setup, including initializing
-		  optix, creates module, pipeline, programs, SBT, etc. */
-		SonelMapper(
-			const OptixSetup& optixSetup,
-			const OptixScene& cudaScene
-		);
+class SonelMapper: public SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
+public:
+	SonelMapper(
+		const OptixSetup& optixSetup,
+		const OptixScene& optixScene
+	);
 
-		void init(SonelMapperConfig config);
-		
-		void calculate();
-		std::vector<std::vector<Sonel>>* getSonelArrays();
+	void initialize(SonelMapperConfig config);
 
-        const SonelMapData& getSonelMapData() const;
+	void execute() override;
+	std::vector<std::vector<Sonel>>* getSonelArrays();
 
-	protected:
-		void createSonelModule();
+	const SonelMapData& getSonelMapData() const;
 
-		void createSonelRaygenPrograms();
-		void createSonelMissPrograms();
-		void createSonelHitgroupPrograms();
-		void createSonelPipeline();
+protected:
+	const char *getLaunchParamsName() override;
 
-		void buildSonelSbt();
+	void configureRaygenProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
+	void configureMissProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
+	void configureHitProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 
-		void launchOptix(SoundFrequency& frequency);
-		void downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex);
+	void createHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) override;
 
-	private:
-		void buildSonelRaygenRecords();
-		void buildSonelMissRecords();
-		void buildSonelHitgroupRecords();
+	void downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex);
 
-	protected:
-		const OptixSetup& optixSetup;
-		const OptixScene& cudaScene;
+private:
+	// Data
+	SonelMapData sonelMap;
+	SonelMapData* sonelMapDevicePtr;
 
-		// Pipeline
-		OptixPipeline sonelPipeline;
-		OptixPipelineCompileOptions sonelPipelineCompileOptions = {};
-		OptixPipelineLinkOptions sonelPipelineLinkOptions = {};
-
-		// Module
-		OptixModule sonelModule;
-		OptixModuleCompileOptions sonelModuleCompileOptions = {};
-
-		// Programs
-		std::vector<OptixProgramGroup> sonelRaygenPgs;
-		CudaBuffer sonelRaygenRecordsBuffer;
-		std::vector<OptixProgramGroup> sonelMissPgs;
-		CudaBuffer sonelMissRecordsBuffer;
-		std::vector<OptixProgramGroup> sonelHitgroupPgs;
-		CudaBuffer sonelHitgroupRecordsBuffer;
-		OptixShaderBindingTable sonelSbt = {};
-
-		// Data
-		SonelMapData sonelMap;
-		SonelMapData* sonelMapDevicePtr;
-
-		CudaSonelMapperParams launchParams;
-		CudaSonelMapperParams* launchParamsDevicePtr;
-
-		uint32_t frequencyIndex;
-		uint32_t frequencySize;
-		bool hasCalculatedSonelMap = false;
-
-		std::vector<std::vector<Sonel>> sonelArrays;
+	std::vector<std::vector<Sonel>> sonelArrays;
 };
+
+
+#endif //SONEL_MAPPING_SONELMAPPER_H

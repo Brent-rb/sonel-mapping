@@ -2,8 +2,8 @@
 #include <optix_function_table_definition.h>
 
 SonelManager::SonelManager(
-	Model* model, 
-	SonelMapperConfig sonelMapperConfig
+		Model* model,
+		SonelMapperConfig sonelMapperConfig
 ): optixSetup(), 
 	optixScene(optixSetup.getOptixContext()),
 	sonelMapper(
@@ -18,7 +18,7 @@ SonelManager::SonelManager(
 	optixScene.setModel(model);
 	optixScene.build();
 
-	sonelMapper.init(sonelMapperConfig);
+	sonelMapper.initialize(sonelMapperConfig);
 	sonelVisualizer.init();
 }
 
@@ -26,7 +26,7 @@ SonelManager::~SonelManager() {
 }
 
 void SonelManager::calculate() {
-	sonelMapper.calculate();
+	sonelMapper.execute();
     sonelVisualizer.setFrequencySize(sonelMapper.getSonelMapData().frequencySize);
 	sonelVisualizer.setSonelArray(sonelMapper.getSonelArrays());
 }
