@@ -88,7 +88,7 @@ protected:
 				"Failed to record sbt record header (raygen pgs)."
 			);
 
-			createRaygenRecords(i, tempRecord);
+			addRaygenRecords(i, tempRecord);
 			raygenRecords.push_back(tempRecord);
 		}
 
@@ -96,7 +96,7 @@ protected:
 		sbt.raygenRecord = raygenRecordsBuffer.getCuDevicePointer();
 	}
 
-	virtual void createRaygenRecords(uint32_t programIndex, SmRecord<U>& raygenRecord) {
+	virtual void addRaygenRecords(uint32_t programIndex, SmRecord<U>& raygenRecord) {
 
 	};
 
@@ -113,7 +113,7 @@ protected:
 				"Failed to record sbt record header (miss pgs)."
 			);
 
-			createMissRecords(i, tempRecord);
+			addMissRecords(i, tempRecord);
 			missRecords.push_back(tempRecord);
 		}
 
@@ -123,14 +123,14 @@ protected:
 		sbt.missRecordCount = static_cast<unsigned int>(missRecords.size());
 	}
 
-	virtual void createMissRecords(uint32_t programIndex, SmRecord<V>& missRecords) {
+	virtual void addMissRecords(uint32_t programIndex, SmRecord<V>& missRecords) {
 
 	};
 
 	void createHitRecords() {
 		std::vector<SmRecord<W>> hitRecords;
 
-		createHitRecords(hitRecords);
+		addHitRecords(hitRecords);
 
 		hitgroupRecordsBuffer.allocAndUpload(hitRecords);
 		sbt.hitgroupRecordBase = hitgroupRecordsBuffer.getCuDevicePointer();
@@ -138,7 +138,7 @@ protected:
 		sbt.hitgroupRecordCount = static_cast<unsigned int>(hitRecords.size());
 	}
 
-	virtual void createHitRecords(std::vector<SmRecord<W>>& hitRecords) = 0;
+	virtual void addHitRecords(std::vector<SmRecord<W>>& hitRecords) = 0;
 
 	void launchOptix(uint32_t x, uint32_t y, uint32_t z) {
 		cudaMemcpy(reinterpret_cast<void*>(launchParamsPtr), &launchParams, sizeof(X), cudaMemcpyHostToDevice);

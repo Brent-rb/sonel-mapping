@@ -19,7 +19,7 @@ SonelManager::SonelManager(
 	optixScene.build();
 
 	sonelMapper.initialize(sonelMapperConfig);
-	sonelVisualizer.init();
+	sonelVisualizer.initialize();
 }
 
 SonelManager::~SonelManager() {
@@ -32,7 +32,7 @@ void SonelManager::calculate() {
 }
 
 void SonelManager::render() {
-	sonelVisualizer.render();
+	sonelVisualizer.execute();
 }
 
 void SonelManager::resize(const vec2i& newSize) {

@@ -71,7 +71,7 @@ void SonelMapper::configureHitProgram(
 	desc.hitgroup.entryFunctionNameAH = "__anyhit__sonelRadiance";
 }
 
-void SonelMapper::createHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
+void SonelMapper::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
 	const Model* model = optixScene.getModel();
 	unsigned int numObjects = static_cast<unsigned int>(model->meshes.size());
 

@@ -1,4 +1,6 @@
 #pragma once
+#ifndef SONELMAPVISUALIZER_H
+#define SONELMAPVISUALIZER_H
 
 // our own classes, partly shared between host and device
 #include "../Cuda/CudaBuffer.h"
@@ -7,21 +9,22 @@
 #include "Models/Model.h"
 #include "OptixSetup.h"
 #include "OptixScene.h"
+#include "SmOptixProgram.h"
+#include "Models/TriangleMeshSbtData.h"
 
-class SonelMapVisualizer {
+class SonelMapVisualizer: public SmOptixProgram<LaunchParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
 public:
 	SonelMapVisualizer(
 		const OptixSetup& optixSetup,
 		OptixScene& cudaScene
 	);
 
-	void init();
+	void initialize();
 
     void setFrequencySize(uint32_t size);
 	void setSonelArray(std::vector<std::vector<Sonel>>* newSonelArray);
 
-	/*! render one frame */
-	void render();
+	void execute() override;
 
 	/*! resize frame buffer to given resolution */
 	void resize(const vec2i& newSize);
@@ -34,41 +37,21 @@ public:
 	void setCamera(const Camera& camera);
 
 protected:
-	void createRenderModule();
+	const char *getLaunchParamsName() override;
 
-	void createRenderRaygenPrograms();
-	void createRenderMissPrograms();
-	void createRenderHitgroupPrograms();
-	void createRenderPipeline();
-	void buildRenderSbt();
+	void configureRaygenProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
+	void configureMissProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
+	void configureHitProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 
-private:
-	void buildRenderRaygenRecords();
-	void buildRenderMissRecords();
-	void buildRenderHitgroupRecords();
+	void addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) override;
+
+	void configureModuleCompileOptions(OptixModuleCompileOptions &compileOptions) override;
+	void configurePipelineCompileOptions(OptixPipelineCompileOptions &pipelineOptions) override;
+	void configurePipelineLinkOptions(OptixPipelineLinkOptions &pipelineLinkOptions) override;
 
 protected:
-	const OptixSetup& optixSetup;
 	OptixScene& cudaScene;
 	std::vector<std::vector<Sonel>>* sonelArray;
-
-	OptixPipeline renderPipeline;
-	OptixPipelineCompileOptions renderPipelineCompileOptions = {};
-	OptixPipelineLinkOptions renderPipelineLinkOptions = {};
-
-	OptixModule renderModule;
-	OptixModuleCompileOptions renderModuleCompileOptions = {};
-
-	std::vector<OptixProgramGroup> renderRaygenPgs;
-	CudaBuffer renderRaygenRecordsBuffer;
-	std::vector<OptixProgramGroup> renderMissPgs;
-	CudaBuffer renderMissRecordsBuffer;
-	std::vector<OptixProgramGroup> renderHitgroupPgs;
-	CudaBuffer renderHitgroupRecordsBuffer;
-	OptixShaderBindingTable renderSbt = {};
-
-	LaunchParams launchParams;
-	CudaBuffer launchParamsBuffer;
 
 	CudaBuffer colorBuffer;
 
@@ -76,3 +59,5 @@ protected:
 
 	uint32_t timestep;
 };
+
+#endif

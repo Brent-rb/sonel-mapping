@@ -37,7 +37,7 @@ protected:
 	void configureMissProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 	void configureHitProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 
-	void createHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) override;
+	void addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) override;
 
 	void downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex);
 
