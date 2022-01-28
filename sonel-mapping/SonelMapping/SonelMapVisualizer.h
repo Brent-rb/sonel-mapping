@@ -4,7 +4,7 @@
 
 // our own classes, partly shared between host and device
 #include "../Cuda/CudaBuffer.h"
-#include "Models/LaunchParams.h"
+#include "Models/SonelVisualizerParams.h"
 #include "../UI/Camera.h"
 #include "Models/Model.h"
 #include "OptixSetup.h"
@@ -12,7 +12,7 @@
 #include "SmOptixProgram.h"
 #include "Models/TriangleMeshSbtData.h"
 
-class SonelMapVisualizer: public SmOptixProgram<LaunchParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
+class SonelMapVisualizer: public SmOptixProgram<SonelVisualizerParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
 public:
 	SonelMapVisualizer(
 		const OptixSetup& optixSetup,
@@ -50,7 +50,6 @@ protected:
 	void configurePipelineLinkOptions(OptixPipelineLinkOptions &pipelineLinkOptions) override;
 
 protected:
-	OptixScene& cudaScene;
 	std::vector<std::vector<Sonel>>* sonelArray;
 
 	CudaBuffer colorBuffer;

@@ -20,10 +20,12 @@ include_directories(${OptiX_INCLUDE})
 
 cuda_compile_and_embed(embedded_visualizer_code Cuda/CudaSonelVisualizer.cu)
 CUDA_COMPILE_AND_EMBED(embedded_mapper_code Cuda/CudaSonelMapper.cu)
+CUDA_COMPILE_AND_EMBED(embedded_receiver_code Cuda/CudaSonelReceiver.cu)
 
 add_executable(sonel-mapping
   ${embedded_visualizer_code}
   ${embedded_mapper_code}
+        ${embedded_receiver_code}
 
         UI/Camera.h
         UI/CameraFrame.h
@@ -42,7 +44,7 @@ add_executable(sonel-mapping
         UI/MainWindow.h
         UI/MainWindow.cpp
 
-        SonelMapping/Models/LaunchParams.h
+        SonelMapping/Models/SonelVisualizerParams.h
         SonelMapping/Models/Model.h
         SonelMapping/Models/Model.cpp
         SonelMapping/Models/TriangleMeshSbtData.h
@@ -68,7 +70,7 @@ add_executable(sonel-mapping
 
   main.cpp
 
-        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h SonelMapping/SmOptixProgram.h SonelMapping/SonelMapper.cpp SonelMapping/SonelMapper.h)
+        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h SonelMapping/SmOptixProgram.h SonelMapping/SonelMapper.cpp SonelMapping/SonelMapper.h SonelMapping/Models/SonelReceiverParams.h SonelMapping/SonelMapReceiver.cpp SonelMapping/SonelMapReceiver.h)
 
 target_link_libraries(
 sonel-mapping

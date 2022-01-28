@@ -6,15 +6,17 @@
 
 extern "C" char embedded_mapper_code[];
 
-SonelMapper::SonelMapper(const OptixSetup &optixSetup, const OptixScene &optixScene): SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_mapper_code, optixSetup, optixScene, 1, 1, 1) {
+SonelMapper::SonelMapper(const OptixSetup &optixSetup, OptixScene &optixScene): SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_mapper_code, optixSetup, optixScene, 1, 1, 1) {
 	hitAhEnabled = true;
 }
 
 void SonelMapper::initialize(SonelMapperConfig config) {
+	maxTime = config.echogramDuration;
+
 	sonelMap.setSoundSources(config.soundSources);
 	sonelMap.duration = config.echogramDuration;
 	sonelMap.soundSpeed = config.soundSpeed;
-	sonelMap.timestep = 0.01f;
+	sonelMap.timestep = config.timestep;
 
 	sonelMapDevicePtr = sonelMap.cudaCreate();
 
@@ -26,8 +28,6 @@ void SonelMapper::initialize(SonelMapperConfig config) {
 }
 
 void SonelMapper::execute() {
-	sonelArrays.resize(static_cast<uint64_t>(sonelMap.duration / sonelMap.timestep) + 1);
-
 	for (uint32_t sourceIndex = 0; sourceIndex < sonelMap.soundSourceSize; sourceIndex++) {
 		launchParams.soundSourceIndex = sourceIndex;
 		SoundSource& soundSource = sonelMap.soundSources[sourceIndex];
@@ -41,9 +41,11 @@ void SonelMapper::execute() {
 			launchParams.localFrequencyIndex = fIndex;
 			launchParams.globalFrequencyIndex = sonelMap.getFrequencyIndex(frequency.frequency);
 			launchOptix(frequency.sonelAmount, frequency.decibelSize, 1);
+			cudaSyncCheck("SonelMapper", "Failed to sync.");
+
 			downloadSonelDataForFrequency(fIndex, sourceIndex);
 			sonelMap.cudaDestroy(sonelMapDevicePtr, sourceIndex, fIndex);
-			cudaSyncCheck("SonelMapper", "Failed to sync.");
+
 		}
 	}
 }
@@ -108,28 +110,26 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 			sonel.frequency = frequency.frequency;
 
 			// The energies of a sonel is 0 the ray is absorbed and done.
-			if (sonel.energy < 0.00001f) {
+			if (sonel.energy < 0.0000000000000001f) {
 				break;
 			}
 
-			auto timeIndex = static_cast<uint64_t>(sonel.time / sonelMap.timestep);
-
-			if (timeIndex < sonelArrays.size()) {
+			if (sonel.time < maxTime) {
 				sonelAmount++;
-				sonelArrays[timeIndex].push_back(sonel);
+				sonelArray.push_back(sonel);
 			}
 		}
 	}
 
-	printf("[SonelMapper] Sonels added %llu\n", sonelAmount);
+	printf("\tSonels added %llu\n", sonelAmount);
 }
 
 const SonelMapData &SonelMapper::getSonelMapData() const {
 	return sonelMap;
 }
 
-std::vector<std::vector<Sonel>> *SonelMapper::getSonelArrays() {
-	return &sonelArrays;
+std::vector<Sonel> *SonelMapper::getSonelArray() {
+	return &sonelArray;
 }
 
 

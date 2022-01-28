@@ -8,7 +8,7 @@ extern "C" char embedded_visualizer_code[];
 SonelMapVisualizer::SonelMapVisualizer(
 	const OptixSetup& optixSetup,
 	OptixScene& cudaScene
-): SmOptixProgram<LaunchParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_visualizer_code, optixSetup, cudaScene, 1, 1, 1), cudaScene(cudaScene), sonelArray(nullptr) {
+): SmOptixProgram<SonelVisualizerParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_visualizer_code, optixSetup, cudaScene, 1, 1, 1), sonelArray(nullptr) {
 	maxTraversableGraphDepth = 3;
 	hitIsEnabled = true;
 	hitAhEnabled = true;
@@ -58,8 +58,8 @@ void SonelMapVisualizer::uploadSonelMapSnapshot() {
 	if (sonelArray != nullptr) {
 		std::vector<Sonel>& sonels = (*sonelArray)[timestep];
 		if (sonels.size() > 0) {
-			cudaScene.setSonels(&sonels, 5.0f);
-			cudaScene.build();
+			optixScene.setSonels(&sonels, 5.0f);
+			optixScene.build();
 			createHitRecords();
 		}
 	}
@@ -97,7 +97,7 @@ void SonelMapVisualizer::execute() {
 	}
 
 	uploadSonelMapSnapshot();
-	launchParams.traversable = cudaScene.getInstanceTraversable();
+	launchParams.traversable = optixScene.getInstanceTraversable();
 
 	auto start = std::chrono::high_resolution_clock::now();
 	launchOptix(launchParams.frame.size.x,launchParams.frame.size.y,1);
@@ -154,7 +154,7 @@ void SonelMapVisualizer::configureHitProgram(
 }
 
 void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
-	const Model* model = cudaScene.getModel();
+	const Model* model = optixScene.getModel();
 	auto meshSize = static_cast<uint32_t>(model->meshes.size());
 
 	for (uint32_t meshId = 0; meshId < meshSize; meshId++) {
@@ -172,13 +172,13 @@ void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>
 				"Failed to create SBT Record Header"
 			);
 
-			cudaScene.fill(meshId, rec.data);
+			optixScene.fill(meshId, rec.data);
 			rec.data.sonel = nullptr;
 			hitRecords.push_back(rec);
 		}
 	}
 
-	for (uint32_t sonelId = 0; sonelId < static_cast<uint32_t>(cudaScene.getSonelSize()); sonelId++) {
+	for (uint32_t sonelId = 0; sonelId < static_cast<uint32_t>(optixScene.getSonelSize()); sonelId++) {
 		for (uint32_t programIndex = 0; programIndex < hitgroupProgramSize; programIndex++) {
 			SmRecord<TriangleMeshSbtData> rec;
 
@@ -191,7 +191,7 @@ void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>
 				"Failed to create SBT Record Header"
 			);
 
-			rec.data.sonel = (Sonel*) cudaScene.getSonelDevicePointer(sonelId);
+			rec.data.sonel = (Sonel*) optixScene.getSonelDevicePointer(sonelId);
 			hitRecords.push_back(rec);
 		}
 	}

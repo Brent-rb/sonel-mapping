@@ -64,7 +64,7 @@ public:
 		assert(cudaPointer != nullptr);
 		assert(sizeInBytes == count * sizeof(T));
 		cudaCheck(
-			cudaMemcpy(cudaPointer, (void*)t, count * sizeof(T), cudaMemcpyHostToDevice), 
+			cudaMemcpy(cudaPointer, reinterpret_cast<const void*>(t), count * sizeof(T), cudaMemcpyHostToDevice),
 			"CUDABuffer", 
 			"Failed to upload."
 		);
@@ -75,12 +75,12 @@ public:
 		assert(cudaPointer != nullptr);
 		assert(sizeInBytes == count * sizeof(T));
 		cudaCheck(
-			cudaMemcpy((void*)t, cudaPointer, count * sizeof(T), cudaMemcpyDeviceToHost), 
+			cudaMemcpy(reinterpret_cast<void*>(t), cudaPointer, count * sizeof(T), cudaMemcpyDeviceToHost),
 			"CUDABuffer", 
 			"Failed to download."
 		);
 	}
 
-	size_t sizeInBytes;
-	void* cudaPointer;
+	size_t sizeInBytes = 0;
+	void* cudaPointer = nullptr;
 };

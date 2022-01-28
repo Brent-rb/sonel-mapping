@@ -11,22 +11,21 @@
 struct SonelMapperConfig {
 	std::vector<SoundSource>& soundSources;
 	float echogramDuration;
+	float timestep;
 	float soundSpeed;
-	float earSize;
-	uint32_t frequencySize;
 };
 
 class SonelMapper: public SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
 public:
 	SonelMapper(
 		const OptixSetup& optixSetup,
-		const OptixScene& optixScene
+		OptixScene& optixScene
 	);
 
 	void initialize(SonelMapperConfig config);
 
 	void execute() override;
-	std::vector<std::vector<Sonel>>* getSonelArrays();
+	std::vector<Sonel>* getSonelArray();
 
 	const SonelMapData& getSonelMapData() const;
 
@@ -43,10 +42,11 @@ protected:
 
 private:
 	// Data
+	float maxTime;
 	SonelMapData sonelMap;
 	SonelMapData* sonelMapDevicePtr;
 
-	std::vector<std::vector<Sonel>> sonelArrays;
+	std::vector<Sonel> sonelArray;
 };
 
 

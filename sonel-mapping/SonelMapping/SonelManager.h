@@ -4,6 +4,7 @@
 #include "SonelMapper.h"
 #include "SonelMapVisualizer.h"
 #include "../UI/Camera.h"
+#include "SonelMapReceiver.h"
 
 class SonelManager {
 public:
@@ -27,5 +28,6 @@ protected:
 
 	SonelMapper sonelMapper;
 	SonelMapVisualizer sonelVisualizer;
+	SonelMapReceiver sonelMapReceiver;
 };
 

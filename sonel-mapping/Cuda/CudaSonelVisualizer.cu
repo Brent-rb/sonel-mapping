@@ -22,7 +22,7 @@
 #include "CudaRandom.h"
 
 #include "../SonelMapping/SonelVisibilityFlags.h"
-#include "../SonelMapping/Models/LaunchParams.h"
+#include "../SonelMapping/Models/SonelVisualizerParams.h"
 #include "../SonelMapping/Models/Sonel.h"
 #include "../SonelMapping/Models/TriangleMeshSbtData.h"
 #include "../../common/gdt/gdt/math/vec.h"
@@ -34,7 +34,7 @@ using namespace gdt;
 /*! launch parameters in constant memory, filled in by optix upon
 	optixLaunch (this gets filled in from the buffer we pass to
 	optixLaunch) */
-extern "C" __constant__ LaunchParams launchParams;
+extern "C" __constant__ SonelVisualizerParams launchParams;
 
 /*! per-ray data now captures random number generator, so programs
 	can access RNG state */
@@ -202,8 +202,6 @@ extern "C" __global__ void __raygen__renderFrame() {
 	const int randX = (screenX);
 	const int randY = (screenY * frameX);
 
-	curandState_t curandState;
-	curand_init((randX + randY), 0, 0, &curandState);
 	PerRayData prd;
 
     memset(prd.energies, 0, sizeof(float) * launchParams.frequencySize);

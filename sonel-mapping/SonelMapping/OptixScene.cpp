@@ -32,6 +32,10 @@ OptixScene::OptixScene(const OptixDeviceContext& optixContext):
 }
 
 OptixScene::~OptixScene() {
+
+}
+
+void OptixScene::destroy() {
 	clear();
 
 	cudaFree(reinterpret_cast<void*>(optixInstanceBuffer));

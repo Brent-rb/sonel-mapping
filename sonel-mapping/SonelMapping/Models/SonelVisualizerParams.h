@@ -22,7 +22,7 @@
 // for this simple example, we have a single ray type
 enum { RADIANCE_RAY_TYPE = 0, RAY_TYPE_COUNT };
 
-struct LaunchParams {
+struct SonelVisualizerParams {
 	struct {
 		uint32_t* colorBuffer;
 		gdt::vec2i size;

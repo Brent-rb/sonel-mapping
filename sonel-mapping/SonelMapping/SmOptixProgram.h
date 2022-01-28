@@ -27,11 +27,22 @@ class SmOptixProgram {
 public:
 	virtual void execute() = 0;
 
+	virtual void destroy() {
+		if (launchParamsPtr != 0) {
+			cudaFree(reinterpret_cast<void *>(launchParamsPtr));
+			launchParamsPtr = 0;
+		}
+
+		raygenRecordsBuffer.tryFree();
+		missRecordsBuffer.tryFree();
+		hitgroupRecordsBuffer.tryFree();
+	}
+
 protected:
 	SmOptixProgram(
 		const std::string optixCode,
 		const OptixSetup& optixSetup,
-		const OptixScene& optixScene,
+		OptixScene& optixScene,
 		const uint32_t raygenProgramSize = 0,
 		const uint32_t missProgramSize = 0,
 		const uint32_t hitProgramSize = 0
@@ -45,10 +56,7 @@ protected:
 	}
 
 	~SmOptixProgram() {
-		cudaFree(reinterpret_cast<void*>(launchParamsPtr));
-		raygenRecordsBuffer.tryFree();
-		missRecordsBuffer.tryFree();
-		hitgroupRecordsBuffer.tryFree();
+		// destroy();
 	}
 
 	void init() {
@@ -350,7 +358,7 @@ protected:
 
 	const std::string optixCode;
 	const OptixSetup& optixSetup;
-	const OptixScene& optixScene;
+	OptixScene& optixScene;
 
 	std::vector<OptixProgramGroup> raygenPgs;
 	std::vector<OptixProgramGroup> missPgs;

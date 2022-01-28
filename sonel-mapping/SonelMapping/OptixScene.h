@@ -9,6 +9,7 @@ public:
 	OptixScene(const OptixDeviceContext& optixContext);
 	~OptixScene();
 
+	void destroy();
 	void clear();
 	void build();
 	void buildTriangles();

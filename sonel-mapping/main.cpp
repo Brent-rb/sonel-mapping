@@ -25,10 +25,10 @@ struct Scene {
 	Model* model;
 	Camera camera;
 	std::vector<SoundSource> soundSources;
-	int frequencies;
 	float echogramDuration;
 	float soundSpeed;
 	float earSize;
+	float timestep;
 };
 
 Scene loadSponza();
@@ -44,9 +44,8 @@ extern "C" int main(int argC, char** argV) {
 		SonelMapperConfig config = {
 			scene.soundSources,
 			scene.echogramDuration,
-			scene.soundSpeed,
-			scene.earSize,
-			static_cast<uint32_t>(scene.frequencies)
+			scene.timestep,
+			scene.soundSpeed
 		};
 
 		MainWindow* window = new MainWindow(
@@ -125,23 +124,13 @@ Scene loadSponza() {
 	soundSources.push_back(source1);
 	soundSources.push_back(source2);
 
-	// some simple, hard-coded light ... obviously, only works for sponza
-	const float light_size = 200.f;
-
-	QuadLight light = {
-		/* origin */ vec3f(-1000 - light_size,800,-light_size),
-		/* edge 1 */ vec3f(2.f * light_size,0,0),
-		/* edge 2 */ vec3f(0,0,2.f * light_size),
-		/* power */  vec3f(3000000.f)
-	};
-
 	return {
 		model,
 		camera,
 		soundSources,
-		4,
 		6.0f, // Seconds
 		343.0f, // m/s
-		0.3f // meter
+		0.3f, // meter
+		0.01f
 	};
 }
