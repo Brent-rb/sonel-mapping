@@ -176,7 +176,9 @@ extern "C" __global__ void __raygen__generateSonelMap() {
 		return;
 	}
 
-	PerRayData prd = PerRayData(random, sonelIndex, decibels / soundFrequency.sonelAmount);
+	float energy = (powf(10, decibels / 10) / soundFrequency.sonelAmount) * 1e-12f;
+
+	PerRayData prd = PerRayData(random, sonelIndex, energy);
 	prd.maxDepth = soundFrequency.sonelMaxDepth;
 	prd.sonels = soundFrequency.sonels;
 	prd.distance = decibelIndex * params.sonelMapData->timestep * params.sonelMapData->soundSpeed;
