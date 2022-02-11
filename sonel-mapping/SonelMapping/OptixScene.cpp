@@ -1,34 +1,33 @@
 #include "OptixScene.h"
 #include "SonelVisibilityFlags.h"
 
-OptixScene::OptixScene(const OptixDeviceContext& optixContext): 
-	optixContext(optixContext), 
-	model(nullptr), sonels(nullptr), 
-	meshSize(0), sonelSize(0), 
-	triangleHandle(0), aabbHandle(0), instanceHandle(0) {
+OptixScene::OptixScene(const OptixDeviceContext& optixContext):
+		optixContext(optixContext),
+		model(nullptr), sonels(nullptr), soundSources(nullptr),
+		meshSize(0), sonelSize(0), soundSourceSize(0),
+		geometryHandle(0), sonelHandle(0), soundSourceHandle(0), instanceHandle(0) {
 
 	void* instanceBuffer;
-	cudaMalloc(&instanceBuffer, sizeof(OptixInstance) * 2);
-	optixInstances.resize(2);
+	cudaMalloc(&instanceBuffer, sizeof(OptixInstance) * instanceSize);
+	optixInstances.resize(instanceSize);
 	optixInstanceBuffer = reinterpret_cast<CUdeviceptr>(instanceBuffer);
 
 	float matrix[12] = { 1, 0, 0, 0,
 	                     0, 1, 0, 0,
 	                     0, 0, 1, 0 };
-	optixInstances[0] = {};
-	optixInstances[0].flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
-	optixInstances[0].instanceId = 0u;
-	optixInstances[0].sbtOffset = 0u;
-	optixInstances[0].visibilityMask = 255u;
 
-	optixInstances[1] = {};
-	optixInstances[1].flags = OPTIX_INSTANCE_FLAG_NONE;
-	optixInstances[1].instanceId = 1u;
-	optixInstances[0].sbtOffset = 0u;
-	optixInstances[1].visibilityMask = 255u;
+	for (uint32_t i = 0; i < instanceSize; i++) {
+		optixInstances[i] = {};
+		optixInstances[i].flags = OPTIX_INSTANCE_FLAG_NONE;
+		optixInstances[i].instanceId = i;
+		optixInstances[i].sbtOffset = 0u;
+		optixInstances[i].visibilityMask = 255u;
+		memcpy(optixInstances[i].transform, matrix, sizeof(float) * 12);
+	}
 
-	memcpy(optixInstances[0].transform, matrix, sizeof(float) * 12);
-	memcpy(optixInstances[1].transform, matrix, sizeof(float) * 12);
+	optixInstances[0].visibilityMask = GEOMETRY_VISIBLE;
+	optixInstances[1].visibilityMask = SONELS_VISIBLE;
+	optixInstances[2].visibilityMask = SOUND_SOURCES_VISIBLE;
 }
 
 OptixScene::~OptixScene() {
@@ -42,50 +41,68 @@ void OptixScene::destroy() {
 }
 
 void OptixScene::clear() {
-	clearMeshBuffers();
+	clearGeometryBuffers();
 	clearSonelBuffers();
+	clearSoundSourceBuffers();
 }
 
 void OptixScene::build() {
 	cudaSyncCheck("OptixScene", "Sync failed before build.");
 
 
-	if (meshBuffersInvalid) {
-		buildTriangles();
-		meshBuffersInvalid = false;
+	if (geometryBuffersInvalid) {
+		buildGeometry();
+		geometryBuffersInvalid = false;
 	}
 	if (sonelBuffersInvalid) {
 		buildSonels();
 		sonelBuffersInvalid = false;
 	}
+	if (soundSourceBuffersInvalid) {
+		buildSoundSources();
+		soundSourceBuffersInvalid = false;
+	}
 
-	buildInstanceStructure();
+	buildInstanceAccelStructure();
 }
 
-void OptixScene::buildTriangles() {
-	prepareTriangleBuffers();
-	buildTriangleInputs();
-	buildTextures();
-	buildTriangleAccelStructure();
+void OptixScene::buildGeometry() {
+	clearGeometryBuffers();
+	prepareGeometryBuffers();
+	buildGeometryInputs();
+	buildGeometryTextures();
+	buildGeometryAccelStructure();
 }
 
 void OptixScene::buildSonels() {
+	clearSonelBuffers();
 	prepareSonelBuffers();
-	buildSonelAabbInputs();
-	buildSonelAabbAccelStructure();
+	buildSonelInputs();
+	buildSonelAccelStructure();
+}
+
+void OptixScene::buildSoundSources() {
+	clearSoundSourceBuffers();
+	prepareSoundSourceBuffers();
+	buildSoundSourceInputs();
+	buildSoundSourceAccelStructure();
 }
 
 uint32_t OptixScene::getSonelSize() const {
 	return sonelSize;
 }
 
-void OptixScene::setModel(Model* newModel) {
-	clearMeshBuffers();
+uint32_t OptixScene::getSoundSourceSize() const {
+	return soundSourceSize;
+}
 
-	this->model = newModel;
+void OptixScene::setModel(Model* newModel) {
+	printf("[OptixScene] Setting model, meshes: %llu\n", newModel->meshes.size());
+
+	model = newModel;
 	meshSize = static_cast<uint32_t>(newModel->meshes.size());
 
-	meshBuffersInvalid = true;
+	geometryBuffersInvalid = true;
 }
 
 Model* OptixScene::getModel() const {
@@ -93,12 +110,11 @@ Model* OptixScene::getModel() const {
 }
 
 void OptixScene::setSonels(std::vector<Sonel>* newSonels, float searchRadius) {
-	clearSonelBuffers();
-	printf("Setting newSonels %llu\n", newSonels->size());
+	printf("[OptixScene] Setting sonels, size: %llu\n", newSonels->size());
 
-	this->sonels = newSonels;
+	sonels = newSonels;
 	sonelSize = static_cast<uint32_t>(newSonels->size());
-	radius = searchRadius;
+	sonelRadius = searchRadius;
 
 	sonelBuffersInvalid = true;
 }
@@ -107,23 +123,41 @@ std::vector<Sonel>* OptixScene::getSonels() const {
 	return sonels;
 }
 
+void OptixScene::setSoundSources(std::vector<SimpleSoundSource> *newSoundSources, float searchRadius) {
+	printf("[OptixScene] Setting sound sources, size: %llu\n", newSoundSources->size());
+
+	soundSources = newSoundSources;
+	soundSourceSize = static_cast<uint32_t>(newSoundSources->size());
+	soundSourceRadius = searchRadius;
+
+	soundSourceBuffersInvalid = true;
+}
+
+std::vector<SimpleSoundSource> *OptixScene::getSoundSources() const {
+	return soundSources;
+}
+
 CUdeviceptr OptixScene::getSonelDevicePointer(uint32_t sonelIndex) const {
-	return sonelBuffer.getCuDevicePointer() + (sonelIndex * sizeof(Sonel));
+	return getDevicePtr<Sonel>(sonelBuffer, sonelIndex);
 }
 
-const OptixTraversableHandle& OptixScene::getGeoTraversable() const {
-	return triangleHandle;
+CUdeviceptr OptixScene::getSoundSourceDevicePointer(uint32_t soundSourceIndex) const {
+	return getDevicePtr<SimpleSoundSource>(soundSourceBuffer, soundSourceIndex);
 }
 
-const OptixTraversableHandle& OptixScene::getAabbTraversable() const {
-	return aabbHandle;
+const OptixTraversableHandle& OptixScene::getGeometryHandle() const {
+	return geometryHandle;
 }
 
-const OptixTraversableHandle& OptixScene::getInstanceTraversable() const {
+const OptixTraversableHandle& OptixScene::getSonelHandle() const {
+	return sonelHandle;
+}
+
+const OptixTraversableHandle& OptixScene::getInstanceHandle() const {
 	return instanceHandle;
 }
 
-void OptixScene::fill(const uint32_t meshIndex, TriangleMeshSbtData& triangleData) const {
+void OptixScene::fill(const uint32_t meshIndex, SmSbtData& triangleData) const {
 	TriangleMesh* mesh = model->meshes[meshIndex];
 
 	// Load color data
@@ -143,55 +177,64 @@ void OptixScene::fill(const uint32_t meshIndex, TriangleMeshSbtData& triangleDat
 	triangleData.texcoord = (vec2f*)texcoordBuffer[meshIndex].getCuDevicePointer();
 }
 
-void OptixScene::clearMeshBuffers() {
-	printf("Clear mesh buffers\n");
-	for (uint32_t meshId = 0; meshId < meshSize; meshId++) {
-		// upload the model to the device: the builder
-		TriangleMesh& mesh = *model->meshes[meshId];
-
+void OptixScene::clearGeometryBuffers() {
+	printf("[OptixScene] Clearing geometry buffers.\n");
+	for (uint32_t meshId = 0; meshId < vertexBuffer.size(); meshId++) {
 		vertexBuffer[meshId].tryFree();
 		indexBuffer[meshId].tryFree();
-
-		if (!mesh.normal.empty()) {
-			normalBuffer[meshId].tryFree();
-		}
-		if (!mesh.texcoord.empty()) {
-			texcoordBuffer[meshId].tryFree();
-		}
+		normalBuffer[meshId].tryFree();
+		texcoordBuffer[meshId].tryFree();
 	}
 
-	triangleAccelBuffer.tryFree();
+	meshAccelBuffer.tryFree();
 }
 
 void OptixScene::clearSonelBuffers() {
-	aabbAccelBuffer.tryFree();
+	printf("[OptixScene] Clearing sonel buffers.\n");
+	sonelAccelBuffer.tryFree();
 	sonelBuffer.tryFree();
     sonelAabbBuffer.tryFree();
 }
 
-void OptixScene::prepareTriangleBuffers() {
-	triangleInputs.resize(meshSize);
-	triangleInputFlags.resize(meshSize);
+void OptixScene::clearSoundSourceBuffers() {
+	printf("[OptixScene] Clearing sound source buffers.\n");
+	soundSourceAccelBuffer.tryFree();
+	soundSourceBuffer.tryFree();
+	soundSourceAabbBuffer.tryFree();
+}
+
+void OptixScene::prepareGeometryBuffers() {
+	geometryInputs.resize(meshSize);
+	geometryInputFlags.resize(meshSize);
 
 	vertexBuffer.resize(meshSize);
 	normalBuffer.resize(meshSize);
 	texcoordBuffer.resize(meshSize);
 	indexBuffer.resize(meshSize);
 
-	cudaVertices.resize(meshSize);
-	cudaIndices.resize(meshSize);
+	cudaGeometryVertices.resize(meshSize);
+	cudaGeometryIndices.resize(meshSize);
 }
 
 void OptixScene::prepareSonelBuffers() {
-	aabbInputs.resize(sonelSize);
-	aabbInputFlags.resize(sonelSize);
+	sonelInputs.resize(sonelSize);
+	sonelInputFlags.resize(sonelSize);
 
 	sonelAabbBuffer.resize(sonelSize);
 	sonelBuffer.resize(sonelSize);
-	cudaAabbs.resize(sonelSize);
+	cudaSonelInputs.resize(sonelSize);
 }
 
-void OptixScene::buildTriangleInputs() {	
+void OptixScene::prepareSoundSourceBuffers() {
+	soundSourceInputs.resize(soundSourceSize);
+	soundSourceInputFlags.resize(soundSourceSize);
+
+	soundSourceAabbBuffer.resize(soundSourceSize);
+	soundSourceBuffer.resize(soundSourceSize);
+	cudaSoundSourceInputs.resize(soundSourceSize);
+}
+
+void OptixScene::buildGeometryInputs() {
 	for (uint32_t meshId = 0; meshId < meshSize; meshId++) {
 		// upload the model to the device: the builder
 		TriangleMesh& mesh = *model->meshes[meshId];
@@ -206,38 +249,38 @@ void OptixScene::buildTriangleInputs() {
 			texcoordBuffer[meshId].allocAndUpload(mesh.texcoord);
 		}
 
-		triangleInputs[meshId] = {};
-		triangleInputs[meshId].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+		geometryInputs[meshId] = {};
+		geometryInputs[meshId].type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 
 		// create local variables, because we need a *pointer* to the
 		// device pointers
-		cudaVertices[meshId] = vertexBuffer[meshId].getCuDevicePointer();
-		cudaIndices[meshId] = indexBuffer[meshId].getCuDevicePointer();
+		cudaGeometryVertices[meshId] = vertexBuffer[meshId].getCuDevicePointer();
+		cudaGeometryIndices[meshId] = indexBuffer[meshId].getCuDevicePointer();
 
-		triangleInputs[meshId].triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-		triangleInputs[meshId].triangleArray.vertexStrideInBytes = sizeof(vec3f);
-		triangleInputs[meshId].triangleArray.numVertices = (int)mesh.vertex.size();
-		triangleInputs[meshId].triangleArray.vertexBuffers = &cudaVertices[meshId];
+		geometryInputs[meshId].triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+		geometryInputs[meshId].triangleArray.vertexStrideInBytes = sizeof(vec3f);
+		geometryInputs[meshId].triangleArray.numVertices = (int)mesh.vertex.size();
+		geometryInputs[meshId].triangleArray.vertexBuffers = &cudaGeometryVertices[meshId];
 
-		triangleInputs[meshId].triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-		triangleInputs[meshId].triangleArray.indexStrideInBytes = sizeof(vec3i);
-		triangleInputs[meshId].triangleArray.numIndexTriplets = (int)mesh.index.size();
-		triangleInputs[meshId].triangleArray.indexBuffer = cudaIndices[meshId];
+		geometryInputs[meshId].triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+		geometryInputs[meshId].triangleArray.indexStrideInBytes = sizeof(vec3i);
+		geometryInputs[meshId].triangleArray.numIndexTriplets = (int)mesh.index.size();
+		geometryInputs[meshId].triangleArray.indexBuffer = cudaGeometryIndices[meshId];
 
-		triangleInputFlags[meshId] = OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+		geometryInputFlags[meshId] = OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
 
 		// in this example we have one SBT entry, and no per-primitive
 		// materials:
-		triangleInputs[meshId].triangleArray.flags = &triangleInputFlags[meshId];
-		triangleInputs[meshId].triangleArray.numSbtRecords = 1;
-		triangleInputs[meshId].triangleArray.sbtIndexOffsetBuffer = 0;
-		triangleInputs[meshId].triangleArray.sbtIndexOffsetSizeInBytes = 0;
-		triangleInputs[meshId].triangleArray.sbtIndexOffsetStrideInBytes = 0;
+		geometryInputs[meshId].triangleArray.flags = &geometryInputFlags[meshId];
+		geometryInputs[meshId].triangleArray.numSbtRecords = 1;
+		geometryInputs[meshId].triangleArray.sbtIndexOffsetBuffer = 0;
+		geometryInputs[meshId].triangleArray.sbtIndexOffsetSizeInBytes = 0;
+		geometryInputs[meshId].triangleArray.sbtIndexOffsetStrideInBytes = 0;
 	}
 }
 
 
-void OptixScene::buildTextures() {
+void OptixScene::buildGeometryTextures() {
 	auto numTextures = static_cast<uint32_t>(model->textures.size());
 
 	textureArrays.resize(numTextures);
@@ -295,128 +338,57 @@ void OptixScene::buildTextures() {
 	}
 }
 
-void OptixScene::buildSonelAabbInputs() {
+void OptixScene::buildSonelInputs() {
+	buildAabb(sonels, sonelBuffer, sonelAabbBuffer,
+			  cudaSonelInputs, sonelInputs, sonelInputFlags,
+			  sonelRadius);
+}
+
+void OptixScene::buildSoundSourceInputs() {
+	buildAabb(soundSources, soundSourceBuffer, soundSourceAabbBuffer,
+			  cudaSoundSourceInputs, soundSourceInputs, soundSourceInputFlags,
+			  soundSourceRadius);
+}
+
+void OptixScene::buildGeometryAccelStructure() {
+	geometryHandle = buildTraversable(geometryInputs, meshAccelBuffer);
+	optixInstances[0].traversableHandle = geometryHandle;
+}
+
+void OptixScene::buildSonelAccelStructure() {
 	if (sonelSize == 0) {
+		sonelHandle = 0;
 		return;
 	}
 
-	prepareSonelBuffers();
-	sonelBuffer.allocAndUpload(*sonels);
-    sonelAabbBuffer.alloc(sizeof(OptixAabb) * sonelSize);
-    CUdeviceptr aabbDevicePtr = sonelAabbBuffer.getCuDevicePointer();
-
-    std::vector<OptixAabb> tempAabbs;
-    tempAabbs.resize(sonelSize);
-
-	for (uint32_t sonelId = 0; sonelId < sonelSize; sonelId++) {
-		// upload the model to the device: the builder
-		const Sonel& sonel = (*sonels)[sonelId];
-
-		gdt::vec3f min = sonel.position - radius;
-		gdt::vec3f max = sonel.position + radius;
-		tempAabbs[sonelId] = {
-                min.x,
-                min.y,
-                min.z,
-                max.x,
-                max.y,
-                max.z
-        };
-
-        float lengthMin = gdt::length(min - sonel.position);
-        float lengthMax = gdt::length(max - sonel.position);
-        if (lengthMin > radius * 2 || lengthMax > radius * 2) {
-            printf("Length min, max: %f, %f\n", lengthMin, lengthMax);
-        }
-
-        cudaAabbs[sonelId] = aabbDevicePtr + (sizeof(OptixAabb) * sonelId);
-
-		aabbInputs[sonelId] = {};
-		aabbInputs[sonelId].type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
-
-        if (cudaAabbs[sonelId] % OPTIX_AABB_BUFFER_BYTE_ALIGNMENT > 0) {
-            printf("Misaligned\n");
-        }
-
-		aabbInputs[sonelId].customPrimitiveArray.aabbBuffers = &(cudaAabbs[sonelId]);
-		aabbInputs[sonelId].customPrimitiveArray.strideInBytes = sizeof(OptixAabb);
-		aabbInputs[sonelId].customPrimitiveArray.numPrimitives = 1;
-
-		aabbInputFlags[sonelId] = OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL;
-
-		aabbInputs[sonelId].customPrimitiveArray.flags = &aabbInputFlags[sonelId];
-		aabbInputs[sonelId].customPrimitiveArray.numSbtRecords = 1;
-		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetBuffer = 0;
-		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetSizeInBytes = 0;
-		aabbInputs[sonelId].customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
-	}
-
-    sonelAabbBuffer.upload(tempAabbs.data(), sonelSize);
+	sonelHandle = buildTraversable(sonelInputs, sonelAccelBuffer);
+	optixInstances[1].sbtOffset = meshSize;
+	optixInstances[1].traversableHandle = sonelHandle;
 }
 
-void OptixScene::buildTriangleAccelStructure() {
-	this->triangleHandle = buildTraversable(triangleInputs, triangleAccelBuffer);
-
-	optixInstances[0].traversableHandle = this->triangleHandle;
-	cudaMemcpy(reinterpret_cast<void*>(optixInstanceBuffer), optixInstances.data(), 2, cudaMemcpyHostToDevice);
-}
-
-void OptixScene::buildSonelAabbAccelStructure() {
-	if (sonelSize == 0) {
+void OptixScene::buildSoundSourceAccelStructure() {
+	if (soundSourceSize == 0) {
+		soundSourceHandle = 0;
 		return;
 	}
 
-	this->aabbHandle = buildTraversable(aabbInputs, aabbAccelBuffer);
-	optixInstances[1].traversableHandle = this->triangleHandle;
-
-	cudaMemcpy(reinterpret_cast<void*>(optixInstanceBuffer), optixInstances.data(), 2, cudaMemcpyHostToDevice);
+	soundSourceHandle = buildTraversable(soundSourceInputs, soundSourceAabbBuffer);
+	optixInstances[2].sbtOffset = meshSize + sonelSize;
+	optixInstances[2].traversableHandle = soundSourceHandle;
 }
 
-void OptixScene::buildInstanceStructure() {
-	/*
-	uint32_t instanceSize = 1;
-	printf("Instance size: %d\n", instanceSize);
+void OptixScene::buildInstanceAccelStructure() {
+	OptixInstance instances[3] = { optixInstances[0], optixInstances[1], optixInstances[2] };
 
-	OptixBuildInput instanceBuildInput{};
-	instanceBuildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-	instanceBuildInput.instanceArray.instances = optixInstanceBuffer;
-	instanceBuildInput.instanceArray.numInstances = instanceSize;
-
-	std::vector<OptixBuildInput> buildInputs = { instanceBuildInput };
-	
-	instanceHandle = buildTraversable(buildInputs, instanceAccelBuffer);
-	*/
-	float transform[12] = { 1,0,0,3,0,1,0,0,0,0,1,0 };
-
-	OptixInstance instances[2] = { {}, {} };
-	memcpy(instances[0].transform, transform, sizeof(float) * 12);
-	instances[0].instanceId = 0;
-	instances[0].visibilityMask = GEOMETRY_VISIBLE;
-	instances[0].sbtOffset = 0;
-	instances[0].flags = OPTIX_INSTANCE_FLAG_NONE;
-	instances[0].traversableHandle = triangleHandle;
-
-	memcpy(instances[1].transform, transform, sizeof(float) * 12);
-	instances[1].instanceId = 1;
-	instances[1].visibilityMask = SONELS_VISIBLE;
-	instances[1].sbtOffset = meshSize;
-	instances[1].flags = OPTIX_INSTANCE_FLAG_NONE;
-	instances[1].traversableHandle = aabbHandle;
-
-
-	void* d_instance;
-
-	cudaMalloc(&d_instance, sizeof(OptixInstance) * 2);
-
-
-	cudaMemcpy(d_instance, instances, sizeof(OptixInstance) * 2, cudaMemcpyHostToDevice);
+	void* deviceInstances = reinterpret_cast<void*>(optixInstanceBuffer);
+	cudaMemcpy(deviceInstances, instances, sizeof(OptixInstance) * instanceSize, cudaMemcpyHostToDevice);
 
 	std::vector<OptixBuildInput> buildInputs;
 	buildInputs.resize(1);
 	OptixBuildInput& buildInput = buildInputs[0];
 	buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-	buildInput.instanceArray.instances = reinterpret_cast<CUdeviceptr>(d_instance);
-	buildInput.instanceArray.numInstances = 2;
+	buildInput.instanceArray.instances = reinterpret_cast<CUdeviceptr>(deviceInstances);
+	buildInput.instanceArray.numInstances = instanceSize;
 
 	instanceHandle = buildTraversable(buildInputs, instanceAccelBuffer);
 }

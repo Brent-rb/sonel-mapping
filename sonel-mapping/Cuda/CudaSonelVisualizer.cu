@@ -24,7 +24,7 @@
 #include "../SonelMapping/SonelVisibilityFlags.h"
 #include "../SonelMapping/Models/SonelVisualizerParams.h"
 #include "../SonelMapping/Models/Sonel.h"
-#include "../SonelMapping/Models/TriangleMeshSbtData.h"
+#include "../SonelMapping/Models/SmSbtData.h"
 #include "../../common/gdt/gdt/math/vec.h"
 
 using namespace gdt;
@@ -41,7 +41,7 @@ extern "C" __constant__ SonelVisualizerParams launchParams;
 struct PerRayData {
 	CudaRandom random;
 
-	float energies[16];
+	float data[16];
 	uint32_t hits[16];
 	vec3f pixelColor;
 };
@@ -61,7 +61,7 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 rayDirectionOptix = optixGetWorldRayDirection();
     gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
 
-	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*) optixGetSbtDataPointer();
+	const SmSbtData& sbtData = *(const SmSbtData*) optixGetSbtDataPointer();
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 
 	// ------------------------------------------------------------------
@@ -120,11 +120,11 @@ extern "C" __global__ void __closesthit__radiance() {
 
     float energy = 0;
     float frequency = 0;
-    // printf("Hits: %d, energies: %f\n", prd.hits, prd.energies);
+    // printf("Hits: %d, data: %f\n", prd.hits, prd.data);
 
     for (int i = 0; i < launchParams.frequencySize; i++) {
-        energy += prd.energies[i];
-        frequency += ((i + 1) * 1.0f) / prd.energies[i];
+        energy += prd.data[i];
+        frequency += ((i + 1) * 1.0f) / prd.data[i];
     }
     frequency *= energy;
 
@@ -139,13 +139,13 @@ extern "C" __global__ void __closesthit__radiance() {
 }
 
 extern "C" __global__ void __anyhit__radiance() {
-	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*) optixGetSbtDataPointer();
+	const SmSbtData& sbtData = *(const SmSbtData*) optixGetSbtDataPointer();
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 
 	// printf("AnyHit \n");
 	if (sbtData.sonel != nullptr) {
-		// printf("AnyHit Sonel Frequency: %f Energy: %f\n", sbtData.sonel->frequency, sbtData.sonel->energies);
-		prd.energies[sbtData.sonel->frequencyIndex] += sbtData.sonel->energy;
+		// printf("AnyHit Sonel Frequency: %f Energy: %f\n", sbtData.sonel->frequency, sbtData.sonel->data);
+		prd.data[sbtData.sonel->frequencyIndex] += sbtData.sonel->energy;
 		prd.hits[sbtData.sonel->frequencyIndex]++;
 		optixIgnoreIntersection();
 	}
@@ -155,7 +155,7 @@ extern "C" __global__ void __anyhit__radiance() {
 }
 
 extern "C" __global__ void __intersection__radiance() {
-	const TriangleMeshSbtData* sbtData = (const TriangleMeshSbtData*)optixGetSbtDataPointer();
+	const SmSbtData* sbtData = (const SmSbtData*)optixGetSbtDataPointer();
 	const Sonel* sonelPtr = sbtData->sonel;
 	
 	if (sonelPtr != nullptr) {
@@ -204,7 +204,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 
 	PerRayData prd;
 
-    memset(prd.energies, 0, sizeof(float) * launchParams.frequencySize);
+    memset(prd.data, 0, sizeof(float) * launchParams.frequencySize);
     memset(prd.hits, 0, sizeof(uint32_t) * launchParams.frequencySize);
 	prd.random.init((randX + randY), 0, 0);
 	prd.pixelColor = vec3f(0.f);

@@ -40,6 +40,7 @@ extern "C" int main(int argC, char** argV) {
 		// something approximating the scale of the world, so the
 		// camera knows how much to move for any given user interaction:
 		const float worldScale = length(scene.model->bounds.span());
+		printf("WorldScale: %f\n", worldScale);
 
 		SonelMapperConfig config = {
 			scene.soundSources,
@@ -72,7 +73,7 @@ Scene loadSponza() {
 
 	Camera camera = {
 		/*from*/vec3f(0, 150, model->bounds.center().z),
-		/* at */vec3f(-900, 150, model->bounds.center().z),
+		/* at */vec3f(-2000, 150, model->bounds.center().z),
 		/* up */vec3f(0.f,1.f,0.f)
 	};
 
@@ -80,10 +81,10 @@ Scene loadSponza() {
 	std::vector<SoundFrequency> frequencies1;
 	std::vector<SoundFrequency> frequencies2;
 
-	SoundFrequency frequency1(1000, 100000, 8);
-	SoundFrequency frequency2(2000, 100000, 8);
-	SoundFrequency frequency3(4000, 100000, 8);
-	SoundFrequency frequency4(8000, 100000, 8);
+	SoundFrequency frequency1(1000, 50000, 64, 0.0012);
+	SoundFrequency frequency2(2000, 100000, 64, 0.0023);
+	SoundFrequency frequency3(4000, 200000, 64, 0.0067);
+	SoundFrequency frequency4(8000, 400000, 64, 0.0206);
 
 	std::vector<float> decibels1, decibels2, decibels3, decibels4;
 	for (int i = 0; i < 10; i++) {
@@ -96,10 +97,10 @@ Scene loadSponza() {
 		decibels4.push_back(0.0);
 	}
 
-	decibels1.push_back(70.0f);
-	decibels2.push_back(70.0f);
-	decibels3.push_back(70.0f);
-	decibels4.push_back(70.0f);
+	decibels1.push_back(90.0f);
+	decibels2.push_back(90.0f);
+	decibels3.push_back(90.0f);
+	decibels4.push_back(90.0f);
 
 	frequency1.setDecibels(decibels1);
 	frequency2.setDecibels(decibels2);
@@ -128,9 +129,9 @@ Scene loadSponza() {
 		model,
 		camera,
 		soundSources,
-		6.0f, // Seconds
+		1.5f, // Seconds
 		343.0f, // m/s
 		0.3f, // meter
-		0.01f
+		0.005f
 	};
 }

@@ -29,5 +29,7 @@ protected:
 	SonelMapper sonelMapper;
 	SonelMapVisualizer sonelVisualizer;
 	SonelMapReceiver sonelMapReceiver;
+
+	std::vector<SimpleSoundSource> simpleSoundSources;
 };
 

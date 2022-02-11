@@ -5,29 +5,30 @@
 #include "SonelMapReceiver.h"
 #include <iostream>
 #include <fstream>
+#include "../Cuda/CudaSonelReceiverHelper.h"
 
 extern "C" char embedded_receiver_code[];
-
-#define MAX_FREQUENCIES 8
-#define MAX_DEPTH 8
 
 SonelMapReceiver::SonelMapReceiver(
 	const OptixSetup& optixSetup,
 	OptixScene& optixScene
-): SmOptixProgram<SonelReceiverParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_receiver_code, optixSetup, optixScene, 1, 1, 1) {
+): SmOptixProgram<SonelReceiverParams, EmptyRecord, EmptyRecord, SmSbtData>(embedded_receiver_code, optixSetup, optixScene, 1, 1, 1) {
 	maxTraversableGraphDepth = 3;
 	hitIsEnabled = true;
 	hitAhEnabled = true;
 }
 
-void SonelMapReceiver::initialize(SonelMapReceiverConfig config) {
-	this->config = config;
+void SonelMapReceiver::initialize(SonelMapReceiverConfig newConfig) {
+	config = newConfig;
 
-	launchParams.frequencySize = config.frequencySize;
-	launchParams.duration = config.duration;
-	launchParams.soundSpeed = config.soundSpeed;
-	launchParams.timestep = config.timestep;
-	launchParams.timestepSize = config.timestepSize;
+	launchParams.frequencySize = newConfig.frequencySize;
+	launchParams.duration = newConfig.duration;
+	launchParams.soundSpeed = newConfig.soundSpeed;
+	launchParams.timestep = newConfig.timestep;
+	launchParams.timestepSize = newConfig.timestepSize;
+	launchParams.sonelRadius = 10.0f;
+	launchParams.soundSourceRadius = 10.0f;
+	launchParams.rayAmount = newConfig.rayAmount;
 
 	init();
 }
@@ -39,70 +40,123 @@ void SonelMapReceiver::setCamera(const Camera& camera) {
 }
 
 void SonelMapReceiver::execute() {
-	optixScene.setSonels(sonels, 5.0f);
-	optixScene.build();
-	launchParams.traversable = optixScene.getInstanceTraversable();
-
+	configureScene();
 	createHitRecords();
+	initEchogram();
 
-	bufferSize = (MAX_FREQUENCIES + 1) * MAX_DEPTH * config.rayAmount;
+	for (uint32_t timeIndex = 0; timeIndex < 1; timeIndex++) {
+		launchParams.timeOffset = timeIndex * config.timestep;
+
+		printf("Simulating\n");
+		simulate();
+		printf("Adding to echogram\n");
+		addLaunchToEchogram();
+	}
+
+	writeEchogram();
+}
+
+void SonelMapReceiver::simulate() {
+	bufferSize = getDataArraySize() * config.rayAmount;
 	energyBuffer.alloc(sizeof(float) * bufferSize);
 	launchParams.energies = reinterpret_cast<float*>(energyBuffer.getCuDevicePointer());
 
 	launchOptix(config.rayAmount, 1, 1);
 	cudaSyncCheck("SonelMapReceiver", "Failed sync");
+}
 
-	std::vector<float> rtData;
-	std::vector<std::vector<float>> echogram;
+void SonelMapReceiver::configureScene() {
+	optixScene.setSonels(sonels, 5.0f);
+	optixScene.build();
+	launchParams.traversable = optixScene.getInstanceHandle();
+}
 
-	rtData.resize(bufferSize);
-	energyBuffer.download(rtData.data(), bufferSize);
-
+void SonelMapReceiver::initEchogram() {
 	echogram.resize(config.timestepSize);
 	for (unsigned int timestep = 0; timestep < config.timestepSize; timestep++) {
 		echogram[timestep].resize(MAX_FREQUENCIES, 0.0f);
 	}
 
-	uint32_t bounceStride = (MAX_FREQUENCIES + 1);
-	uint32_t stride = bounceStride * MAX_DEPTH;
-	for (unsigned int ray = 0; ray < config.rayAmount; ray++) {
-		uint32_t rayStart = ray * stride;
+	highestTimestep = 0;
+}
 
-		for (unsigned int bounce = 0; bounce < MAX_DEPTH; bounce++) {
-			uint32_t bounceStart = bounce * bounceStride;
-			float timestamp = rtData[rayStart + bounceStart];
-			uint32_t timeIndex = static_cast<uint32_t>(round(timestamp / config.timestep));
+void SonelMapReceiver::addLaunchToEchogram() {
+	// Storage for current launch
+	std::vector<float> rtData;
+	std::vector<std::vector<float>> tempEchogram;
+	std::vector<std::vector<float>> hits;
+	rtData.resize(bufferSize);
+	energyBuffer.download(rtData.data(), bufferSize);
 
-			if (timeIndex >= echogram.size()) {
-				continue;
-			}
+	hits.resize(config.timestepSize);
+	tempEchogram.resize(config.timestepSize);
+	for (unsigned int timestep = 0; timestep < config.timestepSize; timestep++) {
+		hits[timestep].resize(MAX_FREQUENCIES, 0.0f);
+		tempEchogram[timestep].resize(MAX_FREQUENCIES, 0.0f);
+	}
 
-			for (unsigned int frequency = 0; frequency < MAX_FREQUENCIES; frequency++) {
-				float energy = rtData[rayStart + bounceStart + frequency + 1];
+	uint32_t rayStride = getDataArraySize();
+	for (unsigned int rayIndex = 0; rayIndex < config.rayAmount; rayIndex++) {
+		uint32_t rayStart = rayIndex * rayStride;
 
-				echogram[timeIndex][frequency] += energy;
+		for (unsigned int frequencyIndex = 0; frequencyIndex < MAX_FREQUENCIES; frequencyIndex++) {
+			for (unsigned int sonelIndex = 0; sonelIndex < MAX_SONELS; sonelIndex++) {
+				uint32_t sonelStart = rayStart + getSonelIndex(frequencyIndex, sonelIndex);
+				float timestamp = rtData[sonelStart + DATA_TIME_OFFSET];
+				float energy = rtData[sonelStart + DATA_ENERGY_OFFSET];
+				auto timeIndex = static_cast<uint32_t>(round(timestamp / config.timestep));
+
+				// When we encounter a 0 value we are probably done with this frequency
+				// Timestamp COULD be 0 but unlikely
+				if (energy < 0.000000000001f || timestamp < 0.00000000001f) {
+					// printf("Skipped %f %f\n", energy, timestamp);
+					break;
+				}
+
+				// Outside of range
+				if (timeIndex < 0 || timeIndex >= echogram.size()) {
+					printf("Skipped because outside %d\n", timeIndex);
+					continue;
+				}
+
+				tempEchogram[timeIndex][frequencyIndex] += energy;
+				hits[timeIndex][frequencyIndex] += 1.0f;
+				highestTimestep = max(timeIndex, highestTimestep);
 			}
 		}
 	}
 
-	// std::cout << "{[\n";
-	for (unsigned int timestep = 0; timestep < echogram.size(); timestep++) {
-		// std::cout << "\t[";
-		for (unsigned int frequency = 0; frequency < launchParams.frequencySize; frequency++) {
-			std::cout << echogram[timestep][frequency];
+	float sonelArea = (10.0f * 10.0f * 3.141592653589793238f) * 0.01f;
+	float brdf = 1.0f / (2.0f * 3.141592653589793238f);
+	for (unsigned int time = 0; time < min(config.timestepSize, highestTimestep); time++) {
+		for (unsigned int frequency = 0; frequency < config.frequencySize; frequency++) {
+			float hit = hits[time][frequency];
 
-			if (frequency != launchParams.frequencySize - 1) {
-				std::cout << ", ";
+			if (hit > 1.0f) {
+				echogram[time][frequency] += ((tempEchogram[time][frequency]) / sonelArea) * brdf;
 			}
 		}
-		//std::cout << "]";
+	}
+}
+
+void SonelMapReceiver::writeEchogram() {
+	for (unsigned int timestep = 0; timestep < min(static_cast<uint32_t>(echogram.size()), highestTimestep); timestep++) {
+		std::cout << timestep * config.timestep;
+		for (unsigned int frequency = 0; frequency < launchParams.frequencySize; frequency++) {
+			float energy = echogram[timestep][frequency];
+			float minEnergy = 10.0f / config.rayAmount;
+			double decibel = 0;
+
+			if (energy >= minEnergy)
+				decibel = (log10(energy * config.rayAmount) * 10.0);
+
+			std::cout << "; " << decibel;
+		}
+
 		if (timestep != echogram.size() - 1) {
 			std::cout << "\n";
 		}
 	}
-	//std::cout << "]}\n";
-
-	printf("Wrote out echogram.\n");
 }
 
 const char *SonelMapReceiver::getLaunchParamsName() {
@@ -144,43 +198,77 @@ void SonelMapReceiver::configureHitProgram(
 	desc.hitgroup.entryFunctionNameIS = "__intersection__radiance";
 }
 
-void SonelMapReceiver::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
+void SonelMapReceiver::addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
+	addGeometryHitRecords(hitRecords);
+	addSonelHitRecords(hitRecords);
+	addSoundSourceHitRecords(hitRecords);
+}
+
+void SonelMapReceiver::addGeometryHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
 	const Model* model = optixScene.getModel();
 	auto meshSize = static_cast<uint32_t>(model->meshes.size());
 
 	for (uint32_t meshId = 0; meshId < meshSize; meshId++) {
 		for (uint32_t programIndex = 0; programIndex < hitgroupProgramSize; programIndex++) {
-			SmRecord<TriangleMeshSbtData> rec;
+			SmRecord<SmSbtData> rec;
 
 			optixCheck(
-				optixSbtRecordPackHeader(
-					hitgroupPgs[programIndex],
-					&rec
-				),
-				"SonelMapVisualizer",
-				"Failed to create SBT Record Header"
+					optixSbtRecordPackHeader(
+							hitgroupPgs[programIndex],
+							&rec
+					),
+					"SonelMapReceiver",
+					"Failed to create SBT Record Header"
 			);
 
 			optixScene.fill(meshId, rec.data);
+			rec.data.type = GEOMETRY;
 			rec.data.sonel = nullptr;
+			rec.data.soundSource = nullptr;
 			hitRecords.push_back(rec);
 		}
 	}
+}
 
+void SonelMapReceiver::addSonelHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
 	for (uint32_t sonelId = 0; sonelId < optixScene.getSonelSize(); sonelId++) {
 		for (uint32_t programIndex = 0; programIndex < hitgroupProgramSize; programIndex++) {
-			SmRecord<TriangleMeshSbtData> rec;
+			SmRecord<SmSbtData> rec;
 
 			optixCheck(
-			optixSbtRecordPackHeader(
-					hitgroupPgs[programIndex],
-					&rec
-				),
-				"SonelMapVisualizer",
-				"Failed to create SBT Record Header"
+					optixSbtRecordPackHeader(
+							hitgroupPgs[programIndex],
+							&rec
+					),
+					"SonelMapReceiver",
+					"Failed to create SBT Record Header"
 			);
 
-			rec.data.sonel = (Sonel*) optixScene.getSonelDevicePointer(sonelId);
+			rec.data.type = SONEL;
+			rec.data.sonel = reinterpret_cast<Sonel*>(optixScene.getSonelDevicePointer(sonelId));
+			rec.data.soundSource = nullptr;
+			hitRecords.push_back(rec);
+		}
+	}
+}
+
+void SonelMapReceiver::addSoundSourceHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
+	for (uint32_t sourceId = 0; sourceId < optixScene.getSoundSourceSize(); sourceId++) {
+		for (uint32_t programIndex = 0; programIndex < hitgroupProgramSize; programIndex++) {
+			SmRecord<SmSbtData> rec;
+
+			optixCheck(
+					optixSbtRecordPackHeader(
+							hitgroupPgs[programIndex],
+							&rec
+					),
+					"SonelMapReceiver",
+					"Failed to create SBT Record Header"
+			);
+
+			rec.data.type = SOUND_SOURCE;
+			rec.data.soundSource = reinterpret_cast<SimpleSoundSource*>(optixScene.getSoundSourceDevicePointer(sourceId));
+			rec.data.sonel = nullptr;
 			hitRecords.push_back(rec);
 		}
 	}

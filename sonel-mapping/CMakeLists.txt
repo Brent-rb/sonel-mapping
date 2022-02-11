@@ -47,7 +47,7 @@ add_executable(sonel-mapping
         SonelMapping/Models/SonelVisualizerParams.h
         SonelMapping/Models/Model.h
         SonelMapping/Models/Model.cpp
-        SonelMapping/Models/TriangleMeshSbtData.h
+        SonelMapping/Models/SmSbtData.h
 
         Cuda/CudaBuffer.h
         Cuda/CudaHelper.h
@@ -70,7 +70,7 @@ add_executable(sonel-mapping
 
   main.cpp
 
-        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h SonelMapping/SmOptixProgram.h SonelMapping/SonelMapper.cpp SonelMapping/SonelMapper.h SonelMapping/Models/SonelReceiverParams.h SonelMapping/SonelMapReceiver.cpp SonelMapping/SonelMapReceiver.h)
+        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h SonelMapping/SmOptixProgram.h SonelMapping/SonelMapper.cpp SonelMapping/SonelMapper.h SonelMapping/Models/SonelReceiverParams.h SonelMapping/SonelMapReceiver.cpp SonelMapping/SonelMapReceiver.h SonelMapping/Models/AabbItem.h SonelMapping/Models/SimpelSoundSource.h Cuda/CudaSonelReceiverHelper.h Cuda/CudaSceneSettings.h)
 
 target_link_libraries(
 sonel-mapping

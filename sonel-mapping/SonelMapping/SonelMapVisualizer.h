@@ -10,9 +10,9 @@
 #include "OptixSetup.h"
 #include "OptixScene.h"
 #include "SmOptixProgram.h"
-#include "Models/TriangleMeshSbtData.h"
+#include "Models/SmSbtData.h"
 
-class SonelMapVisualizer: public SmOptixProgram<SonelVisualizerParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
+class SonelMapVisualizer: public SmOptixProgram<SonelVisualizerParams, EmptyRecord, EmptyRecord, SmSbtData> {
 public:
 	SonelMapVisualizer(
 		const OptixSetup& optixSetup,
@@ -43,7 +43,7 @@ protected:
 	void configureMissProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 	void configureHitProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 
-	void addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) override;
+	void addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) override;
 
 	void configureModuleCompileOptions(OptixModuleCompileOptions &compileOptions) override;
 	void configurePipelineCompileOptions(OptixPipelineCompileOptions &pipelineOptions) override;

@@ -16,16 +16,17 @@ struct SonelMapReceiverConfig {
 	float timestep = 0.0f;
 	uint32_t frequencySize = 0;
 	uint32_t timestepSize = 0;
+	std::vector<SoundSource>* soundSources = nullptr;
 };
 
-class SonelMapReceiver: public SmOptixProgram<SonelReceiverParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
+class SonelMapReceiver: public SmOptixProgram<SonelReceiverParams, EmptyRecord, EmptyRecord, SmSbtData> {
 public:
 	SonelMapReceiver(
 		const OptixSetup& optixSetup,
 		OptixScene& optixScene
 	);
 
-	void initialize(SonelMapReceiverConfig config);
+	void initialize(SonelMapReceiverConfig newConfig);
 
 	void execute() override;
 
@@ -35,31 +36,32 @@ public:
 protected:
 	const char *getLaunchParamsName() override;
 
-	void configureRaygenProgram(
-			uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc
-	) override;
+	void configureRaygenProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
+	void configureMissProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
+	void configureHitProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 
-	void configureMissProgram(
-			uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc
-	) override;
-
-	void
-	configureHitProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
-
-	void addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) override;
+	void addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) override;
+	void addGeometryHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords);
+	void addSonelHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords);
+	void addSoundSourceHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords);
 
 	void configureModuleCompileOptions(OptixModuleCompileOptions &compileOptions) override;
-
 	void configurePipelineCompileOptions(OptixPipelineCompileOptions &pipelineOptions) override;
-
 	void configurePipelineLinkOptions(OptixPipelineLinkOptions &pipelineLinkOptions) override;
 
+	void simulate();
+	void configureScene();
+	void initEchogram();
+	void addLaunchToEchogram();
+	void writeEchogram();
 private:
 	SonelMapReceiverConfig config;
 	CudaBuffer energyBuffer;
 	std::vector<Sonel>* sonels;
+	std::vector<std::vector<float>> echogram;
 
 	uint32_t bufferSize;
+	uint32_t highestTimestep = 0;
 };
 
 

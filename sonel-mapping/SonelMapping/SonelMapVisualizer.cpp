@@ -8,7 +8,7 @@ extern "C" char embedded_visualizer_code[];
 SonelMapVisualizer::SonelMapVisualizer(
 	const OptixSetup& optixSetup,
 	OptixScene& cudaScene
-): SmOptixProgram<SonelVisualizerParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_visualizer_code, optixSetup, cudaScene, 1, 1, 1), sonelArray(nullptr) {
+): SmOptixProgram<SonelVisualizerParams, EmptyRecord, EmptyRecord, SmSbtData>(embedded_visualizer_code, optixSetup, cudaScene, 1, 1, 1), sonelArray(nullptr) {
 	maxTraversableGraphDepth = 3;
 	hitIsEnabled = true;
 	hitAhEnabled = true;
@@ -97,7 +97,7 @@ void SonelMapVisualizer::execute() {
 	}
 
 	uploadSonelMapSnapshot();
-	launchParams.traversable = optixScene.getInstanceTraversable();
+	launchParams.traversable = optixScene.getInstanceHandle();
 
 	auto start = std::chrono::high_resolution_clock::now();
 	launchOptix(launchParams.frame.size.x,launchParams.frame.size.y,1);
@@ -153,7 +153,7 @@ void SonelMapVisualizer::configureHitProgram(
 	desc.hitgroup.entryFunctionNameIS = "__intersection__radiance";
 }
 
-void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
+void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
 	const Model* model = optixScene.getModel();
 	auto meshSize = static_cast<uint32_t>(model->meshes.size());
 
@@ -161,7 +161,7 @@ void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>
 		TriangleMesh* mesh = model->meshes[meshId];
 
 		for (uint32_t programIndex = 0; programIndex < hitgroupProgramSize; programIndex++) {
-			SmRecord<TriangleMeshSbtData> rec;
+			SmRecord<SmSbtData> rec;
 
 			optixCheck(
 				optixSbtRecordPackHeader(
@@ -180,7 +180,7 @@ void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>
 
 	for (uint32_t sonelId = 0; sonelId < static_cast<uint32_t>(optixScene.getSonelSize()); sonelId++) {
 		for (uint32_t programIndex = 0; programIndex < hitgroupProgramSize; programIndex++) {
-			SmRecord<TriangleMeshSbtData> rec;
+			SmRecord<SmSbtData> rec;
 
 			optixCheck(
 				optixSbtRecordPackHeader(

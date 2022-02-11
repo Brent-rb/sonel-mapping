@@ -2,22 +2,23 @@
 #include "gdt/math/vec.h"
 #include "optix.h"
 #include "Sonel.h"
+#include "AabbItem.h"
 
 class SoundFrequency {
 public:
-	SoundFrequency() : SoundFrequency(0, 0, 0) {
+	SoundFrequency() : SoundFrequency(0, 0, 0, 0.0) {
 
 	}
 
-	SoundFrequency(uint32_t frequency, uint32_t sonelAmount, uint16_t sonelMaxDepth) :
-		frequency(frequency),
+	SoundFrequency(uint32_t frequency, uint32_t sonelAmount, uint16_t sonelMaxDepth, float absorption) :
+		frequency(frequency), absorption(absorption),
 		decibels(nullptr), decibelSize(0),
 		sonels(nullptr), sonelSize(sonelAmount* sonelMaxDepth),
 		sonelAmount(sonelAmount), sonelMaxDepth(sonelMaxDepth) {
 	}
 
-	SoundFrequency(uint32_t frequency, uint32_t sonelAmount, uint16_t sonelMaxDepth, const std::vector<float>& decibels) :
-		SoundFrequency(frequency, sonelAmount, sonelMaxDepth) {
+	SoundFrequency(uint32_t frequency, uint32_t sonelAmount, uint16_t sonelMaxDepth, float absorption, const std::vector<float>& decibels) :
+		SoundFrequency(frequency, sonelAmount, sonelMaxDepth, absorption) {
 
 	}
 
@@ -83,14 +84,14 @@ public:
 		destroySonels();
 		sonels = new Sonel[sonelSize];
 
-		SoundFrequency deviceCopy(0, 0, 0);
+		SoundFrequency deviceCopy;
 		cudaMemcpy(&deviceCopy, devicePointer, sizeof(SoundFrequency), cudaMemcpyDeviceToHost);
 
 		cudaMemcpy(sonels, deviceCopy.sonels, sonelSize * sizeof(Sonel), cudaMemcpyDeviceToHost);
 	}
 
 	void cudaDestroy(SoundFrequency* devicePointer) {
-		SoundFrequency deviceCopy(0, 0, 0);
+		SoundFrequency deviceCopy;
 
 		cudaMemcpy(&deviceCopy, devicePointer, sizeof(SoundFrequency), cudaMemcpyDeviceToHost);
 		
@@ -115,11 +116,13 @@ public:
 	uint32_t sonelAmount;
 	// The max depth to simulate
 	uint16_t sonelMaxDepth;
+
+	float absorption;
 };
 
 
 
-class SoundSource {
+class SoundSource: public AabbItem {
 public:
 	SoundSource(): frequencySize(0), frequencies(nullptr) {
 
@@ -131,6 +134,10 @@ public:
 			frequencySize = 0;
 			frequencies = nullptr;
 		}
+	}
+
+	gdt::vec3f getPosition() const override {
+		return position;
 	}
 
 	void setFrequencies(const std::vector<SoundFrequency>& data) {

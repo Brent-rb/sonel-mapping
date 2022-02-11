@@ -7,7 +7,8 @@
 
 enum SonelVisibilityFlags {
 	GEOMETRY_VISIBLE = 1,
-	SONELS_VISIBLE = 2
+	SONELS_VISIBLE = 2,
+	SOUND_SOURCES_VISIBLE = 4
 };
 
 inline SonelVisibilityFlags operator|(SonelVisibilityFlags a, SonelVisibilityFlags b)

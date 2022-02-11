@@ -15,7 +15,7 @@ struct SonelMapperConfig {
 	float soundSpeed;
 };
 
-class SonelMapper: public SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData> {
+class SonelMapper: public SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, SmSbtData> {
 public:
 	SonelMapper(
 		const OptixSetup& optixSetup,
@@ -36,7 +36,7 @@ protected:
 	void configureMissProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 	void configureHitProgram(uint32_t programIndex, OptixProgramGroupOptions &options, OptixProgramGroupDesc &desc) override;
 
-	void addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) override;
+	void addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) override;
 
 	void downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex);
 

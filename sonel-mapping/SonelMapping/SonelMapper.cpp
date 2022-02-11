@@ -6,7 +6,7 @@
 
 extern "C" char embedded_mapper_code[];
 
-SonelMapper::SonelMapper(const OptixSetup &optixSetup, OptixScene &optixScene): SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, TriangleMeshSbtData>(embedded_mapper_code, optixSetup, optixScene, 1, 1, 1) {
+SonelMapper::SonelMapper(const OptixSetup &optixSetup, OptixScene &optixScene): SmOptixProgram<CudaSonelMapperParams, EmptyRecord, EmptyRecord, SmSbtData>(embedded_mapper_code, optixSetup, optixScene, 1, 1, 1) {
 	hitAhEnabled = true;
 }
 
@@ -22,7 +22,7 @@ void SonelMapper::initialize(SonelMapperConfig config) {
 
 	launchParams.localFrequencyIndex = 0;
 	launchParams.sonelMapData = sonelMapDevicePtr;
-	launchParams.traversable = optixScene.getGeoTraversable();
+	launchParams.traversable = optixScene.getGeometryHandle();
 
 	init();
 }
@@ -73,13 +73,13 @@ void SonelMapper::configureHitProgram(
 	desc.hitgroup.entryFunctionNameAH = "__anyhit__sonelRadiance";
 }
 
-void SonelMapper::addHitRecords(std::vector<SmRecord<TriangleMeshSbtData>> &hitRecords) {
+void SonelMapper::addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
 	const Model* model = optixScene.getModel();
-	unsigned int numObjects = static_cast<unsigned int>(model->meshes.size());
+	auto numObjects = static_cast<unsigned int>(model->meshes.size());
 
 	for (unsigned int meshId = 0; meshId < numObjects; meshId++) {
 		for (unsigned int programId = 0; programId < hitgroupProgramSize; programId++) {
-			SmRecord<TriangleMeshSbtData> rec;
+			SmRecord<SmSbtData> rec;
 
 			optixCheck(
 				optixSbtRecordPackHeader(hitgroupPgs[programId], &rec),
@@ -109,7 +109,7 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 			Sonel& sonel = sonels[i * frequency.sonelMaxDepth + j];
 			sonel.frequency = frequency.frequency;
 
-			// The energies of a sonel is 0 the ray is absorbed and done.
+			// The data of a sonel is 0 the ray is absorbed and done.
 			if (sonel.energy < 0.0000000000000001f) {
 				break;
 			}

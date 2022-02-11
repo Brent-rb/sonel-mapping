@@ -20,60 +20,58 @@
 
 #include "CudaHelper.h"
 #include "CudaRandom.h"
+#include "CudaSonelReceiverHelper.h"
+#include "CudaSceneSettings.h"
 
 #include "../SonelMapping/SonelVisibilityFlags.h"
 #include "../SonelMapping/Models/SonelReceiverParams.h"
 #include "../SonelMapping/Models/Sonel.h"
-#include "../SonelMapping/Models/TriangleMeshSbtData.h"
+#include "../SonelMapping/Models/SmSbtData.h"
 #include "../../common/gdt/gdt/math/vec.h"
 
 using namespace gdt;
-
-#define RADIUS 5.0f
-#define MAX_FREQUENCIES 8
-#define MAX_DEPTH 8
-
 
 /*! launch parameters in constant memory, filled in by optix upon
 	optixLaunch (this gets filled in from the buffer we pass to
 	optixLaunch) */
 extern "C" __constant__ SonelReceiverParams params;
 
-/*! per-ray data now captures random number generator, so programs
-	can access RNG state */
-struct PerRayData {
-	CudaRandom random;
 
-	float energies[(MAX_FREQUENCIES + 1) * MAX_DEPTH];
-	float time = 0.0f;
-	unsigned short depth = 0;
-	unsigned short energyIndex = 0;
+inline __device__ float getSoundSourceHitT(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
+	float radius = params.soundSourceRadius;
+	gdt::vec3f center = soundSource.position;
+	gdt::vec3f oc = rayOrigin - center;
+
+	float a = dot(rayDirection, rayDirection);
+	float b = 2.0 * dot(oc, rayDirection);
+	float c = dot(oc, oc) - radius * radius;
+	float discriminant = b * b - 4 * a * c;
+
+	if(discriminant < 0){
+		return -1.0;
+	}
+	else {
+		return (-b - sqrt(discriminant)) / (2.0 * a);
+	}
+}
+
+inline __device__ gdt::vec3f getSoundSourceHit(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
+	float t = getSoundSourceHitT(soundSource, rayOrigin, rayDirection);
+	gdt::vec3f hitPosition = gdt::vec3f();
+
+	if (t > 0.0f) {
+		hitPosition = rayOrigin + (t * rayDirection);
+	}
+
+	return hitPosition;
 };
 
-//------------------------------------------------------------------------------
-// closest hit and anyhit programs for radiance-type rays.
-//
-// Note eventually we will have to create one pair of those for each
-// ray type and each geometry type we want to render; but this
-// simple example doesn't use any actual geometries yet, so we only
-// create a single, dummy, set of them (we do have to have at least
-// one group of them to set up the SBT)
-//------------------------------------------------------------------------------
-
-
-extern "C" __global__ void __closesthit__radiance() {
-	const float3 rayOriginOptix = optixGetWorldRayOrigin();
-	gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
-	const float3 rayDirectionOptix = optixGetWorldRayDirection();
-	gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
-
-	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*) optixGetSbtDataPointer();
-	PerRayData& prd = *getPackedOptixObject<PerRayData>();
-
+inline __device__ void getSurfaceData(const SmSbtData& sbtData, gdt::vec3f& hitPosition, gdt::vec3f& geometryNormal, gdt::vec3f& shadingNormal) {
 	// ------------------------------------------------------------------
 	// gather some basic hit information
 	// ------------------------------------------------------------------
 	const int   primitiveIndex = optixGetPrimitiveIndex();
+
 	const vec3i index = sbtData.index[primitiveIndex];
 	const float u = optixGetTriangleBarycentrics().x;
 	const float v = optixGetTriangleBarycentrics().y;
@@ -81,98 +79,199 @@ extern "C" __global__ void __closesthit__radiance() {
 	// ------------------------------------------------------------------
 	// compute shadow
 	// ------------------------------------------------------------------
-	const vec3f surfPos = (1.f - u - v) * sbtData.vertex[index.x]
-			  + u * sbtData.vertex[index.y]
-			  + v * sbtData.vertex[index.z];
+	hitPosition = (1.f - u - v) * sbtData.vertex[index.x]
+	                      + u * sbtData.vertex[index.y]
+	                      + v * sbtData.vertex[index.z];
 
 	const gdt::vec3f& A = sbtData.vertex[index.x];
 	const gdt::vec3f& B = sbtData.vertex[index.y];
 	const gdt::vec3f& C = sbtData.vertex[index.z];
-	gdt::vec3f geometryNormal = gdt::cross(B - A, C - A);
-	gdt::vec3f shadingNormal = (sbtData.normal)
-	                           ? ((1.f - u - v) * sbtData.normal[index.x]
-	                              + u * sbtData.normal[index.y]
-	                              + v * sbtData.normal[index.z])
-	                           : geometryNormal;
+	geometryNormal = gdt::cross(B - A, C - A);
+	shadingNormal = (sbtData.normal)
+	                ? ((1.f - u - v) * sbtData.normal[index.x]
+	                   + u * sbtData.normal[index.y]
+	                   + v * sbtData.normal[index.z])
+	                : geometryNormal;
+}
 
-	uint32_t u0, u1;
-	packPointer(&prd, u0, u1);
+/*! per-ray data now captures random number generator, so programs
+	can access RNG state */
+struct PerRayData {
+	CudaRandom random;
 
-	float duration = gdt::length(rayOrigin - surfPos) / params.soundSpeed;
-	prd.time += duration;
+	float data[(MAX_FREQUENCIES * MAX_SONELS * DATA_SIZE)];
+	unsigned int dataIndices[MAX_FREQUENCIES];
 
-	if (prd.time > params.duration || (prd.depth + 1) == MAX_DEPTH) {
-		return;
+	float time = 0.0f;
+	float distance = 0.0f;
+
+	__device__ unsigned int getDataIndex(unsigned int frequencyIndex) {
+		return getSonelIndex(frequencyIndex, dataIndices[frequencyIndex]);
 	}
 
-	// Save the timestamp
-	prd.energies[prd.energyIndex * (MAX_FREQUENCIES + 1)] = prd.time;
+	__device__ void addSoundSourceHit(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
+		const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
+		const unsigned int dataIndex = getDataIndex(soundSource.frequencyIndex);
+		if ((dataIndices[soundSource.frequencyIndex] + 1) >= MAX_SONELS) {
+			return;
+		}
 
-	optixTrace(
-		params.traversable,
-		surfPos,
-		-rayDirection,
-		0.00001f,    // tmin
-		1.0f,  // tmax
-		0.0f,   // rayTime
-		OptixVisibilityMask(SONELS_VISIBLE),
-		OPTIX_RAY_FLAG_NONE,//OPTIX_RAY_FLAG_NONE,
-		0, 1, // SBT offset, SBT stride
-		0, // missSBTIndex
-		u0, u1
-	);
+		gdt::vec3f soundSourceHit = getSoundSourceHitT(soundSource, rayOrigin, rayDirection);
+		float soundSourceDistance = gdt::length(soundSourceHit - rayOrigin) * SCALE;
+		float energy = (powf(10.0f, soundSource.decibel / 10.0f) / params.rayAmount);
+		float scaledEnergy = energy * exp(-absorption[soundSource.frequencyIndex] * soundSourceDistance);
 
-	prd.depth++;
-	prd.energyIndex++;
+		data[dataIndex + DATA_TIME_OFFSET] = (soundSourceDistance / params.timestep) + soundSource.timestamp;
+		data[dataIndex + DATA_ENERGY_OFFSET] = scaledEnergy;
+		dataIndices[soundSource.frequencyIndex]++;
+	}
 
-	// generate ray direction
-	vec3f rayDir;
-	prd.random.randomVec3fHemi(shadingNormal, rayDir);
+	__device__ void addSonelHit(const Sonel& sonel) {
+		const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
+		const unsigned int dataIndex = getDataIndex(sonel.frequencyIndex);
+		if ((dataIndices[sonel.frequencyIndex] + 1) >= MAX_SONELS) {
+			return;
+		}
 
-	optixTrace(
-		params.traversable,
-		surfPos,
-		rayDir,
-		0.f,    // tmin
-		1e20f,  // tmax
-		0.0f,   // rayTime
-		OptixVisibilityMask(GEOMETRY_VISIBLE),
-		OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-		0,            // SBT offset
-		1,               // SBT stride
-		0,            // missSBTIndex
-		u0, u1
-	);
+		if (sonel.frequencyIndex == 0 || sonel.frequencyIndex == 3) {
+			printf("Distance[%d] %f, %f, %f\n", sonel.frequencyIndex, sonel.distance, distance, sonel.distance + distance);
+		}
 
-}
+		float totalDistance = sonel.distance + distance;
+		float totalTime = sonel.time + time;
+		float scale = exp(-absorption[sonel.frequencyIndex] * totalDistance);
+		float scaledEnergy = sonel.energy * scale;
 
-extern "C" __global__ void __anyhit__radiance() {
-	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*) optixGetSbtDataPointer();
-	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+		// printf("Adding Sonel Hit (%fs), (%f energy) on index %d\n", totalTime, scaledEnergy, dataIndex);
 
-	const unsigned int energyIndex = (prd.depth * (MAX_DEPTH + 1)) + 1 + sbtData.sonel->frequencyIndex;
-	// printf("AnyHit Sonel Frequency: %f Energy: %f\n", sbtData.sonel->frequency, sbtData.sonel->energies);
-	prd.energies[energyIndex] += sbtData.sonel->energy;
-	optixIgnoreIntersection();
-}
+		data[dataIndex + DATA_TIME_OFFSET] = totalTime;
+		data[dataIndex + DATA_ENERGY_OFFSET] = scaledEnergy;
+		dataIndices[sonel.frequencyIndex]++;
+	}
+};
 
-extern "C" __global__ void __intersection__radiance() {
-	const TriangleMeshSbtData* sbtData = (const TriangleMeshSbtData*)optixGetSbtDataPointer();
-	const Sonel* sonelPtr = sbtData->sonel;
-	PerRayData& prd = *getPackedOptixObject<PerRayData>();
-
+extern "C" __global__ void __closesthit__radiance() {
 	const float3 rayOriginOptix = optixGetWorldRayOrigin();
 	const float3 rayDirectionOptix = optixGetWorldRayDirection();
 	gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
 	gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
 
-	const gdt::vec3f center = sonelPtr->position;
-	const float length = gdt::length(center - rayOrigin);
-	const float timeDif = abs(prd.time - sonelPtr->time);
-	// printf("[Intersection] Sonel(%.2f, %.2f, %.2f), Origin(%.2f, %.2f, %.2f) distance %.2f\n", center.x, center.y, center.z, rayOrigin.x, rayOrigin.y, rayOrigin.z, length);
+	const SmSbtData& sbtData = *(const SmSbtData*) optixGetSbtDataPointer();
+	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 
-	if (length < RADIUS && timeDif < params.timestep) {
-		optixReportIntersection(0.001f, 0);
+	if (sbtData.type == SOUND_SOURCE) {
+		// printf("Sound Source Hit");
+		const SimpleSoundSource& soundSource = *(sbtData.soundSource);
+		prd.addSoundSourceHit(soundSource, rayOrigin, rayDirection);
+		return;
+	}
+
+	gdt::vec3f hitPosition, geometryNormal, shadingNormal;
+	getSurfaceData(sbtData, hitPosition, geometryNormal, shadingNormal);
+
+	prd.distance = (gdt::length(rayOrigin - hitPosition) * SCALE);
+	float duration = prd.distance / params.soundSpeed;
+	prd.time += duration;
+
+	uint32_t u0, u1;
+	packPointer(&prd, u0, u1);
+
+	gdt::vec3f newRayDir;
+	float newRayMin = 0.0f;
+	float newRayMax = 1e20f;
+	unsigned int newRayMask;
+	unsigned int newRayFlags = OPTIX_RAY_FLAG_NONE;
+	char* newRayType;
+
+	float decisionProbability = prd.random.randomF(0.0f, DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD);
+	if (decisionProbability < DIFFUSE_BOUNCE_PROB) {
+		// printf("Diffuse Hit\n");
+		newRayMask = SONELS_VISIBLE;
+		newRayMin = 0.01f;
+		newRayMax = 1.0f;
+		newRayDir = -rayDirection;
+	}
+	else {
+		// printf("Specular Hit\n");
+		newRayMask = GEOMETRY_VISIBLE;
+		newRayFlags = OPTIX_RAY_FLAG_DISABLE_ANYHIT;
+		prd.random.randomVec3fHemi(shadingNormal, newRayDir);
+	}
+
+	// printf("%s from(%f, %f, %f), to(%f, %f, %f)\n", newRayType, hitPosition.x, hitPosition.y, hitPosition.z, newRayDir.x, newRayDir.y, newRayDir.z);
+	optixTrace(
+		params.traversable,
+		hitPosition,
+		newRayDir,
+		newRayMin,    // tmin
+		newRayMax,  // tmax
+		0.0f,   // rayTime
+		OptixVisibilityMask(newRayMask),
+		newRayFlags,
+		0, 1, // SBT Offset, Stride
+		0,    // missSBTIndex
+		u0, u1
+	);
+}
+
+
+extern "C" __global__ void __anyhit__radiance() {
+	// printf("AnyHit\n");
+	const SmSbtData& sbtData = *(const SmSbtData*) optixGetSbtDataPointer();
+	const SbtDataType type = sbtData.type;
+	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+
+	if (type == SONEL) {
+		const Sonel& sonel = *sbtData.sonel;
+		// printf("Adding Sonel\n");
+		prd.addSonelHit(sonel);
+		optixIgnoreIntersection();
+	}
+}
+
+extern "C" __global__ void __intersection__radiance() {
+	// printf("Intersection\n");
+	const float3 rayOriginOptix = optixGetWorldRayOrigin();
+	const float3 rayDirectionOptix = optixGetWorldRayDirection();
+	gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
+	gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
+
+	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+	const SmSbtData* sbtData = (const SmSbtData*)optixGetSbtDataPointer();
+	const SbtDataType type = sbtData->type;
+	float intersectionT = -1.0f;
+
+	if (type == SONEL) {
+		const Sonel& sonel = *(sbtData->sonel);
+
+		gdt::vec3f center = sonel.position;
+		float length = gdt::length(center - rayOrigin);
+		if (length < params.sonelRadius) {
+			intersectionT = 0.11f;
+		}
+	}
+	else if (type == SOUND_SOURCE) {
+		const SimpleSoundSource& soundSource = *(sbtData->soundSource);
+
+		gdt::vec3f center = soundSource.position;
+		float radius = params.soundSourceRadius;
+
+		gdt::vec3f oc = rayOrigin - center;
+		float a = dot(rayDirection, rayDirection);
+		float b = 2.0 * dot(oc, rayDirection);
+		float c = dot(oc,oc) - radius * radius;
+		float discriminant = b * b - 4 * a * c;
+
+		if(discriminant < 0){
+			intersectionT = -1.0;
+		}
+		else{
+			intersectionT = (-b - sqrt(discriminant)) / (2.0 * a);
+		}
+	}
+
+	if (intersectionT > 0.000000000000000000000001f) {
+		optixReportIntersection(intersectionT, 0);
 	}
 }
 
@@ -200,13 +299,15 @@ extern "C" __global__ void __raygen__renderFrame() {
 
 	PerRayData prd;
 
-	memset(prd.energies, 0, sizeof(float) * (MAX_FREQUENCIES + 1) * MAX_DEPTH);
+	memset(prd.data, 0, sizeof(float) * getDataArraySize());
+	memset(prd.dataIndices, 0, sizeof(unsigned int) * MAX_FREQUENCIES);
+
 	prd.random.init(rayIndex, 0, 0);
+	prd.time = params.timeOffset;
 
 	// the values we store the PRD pointer in:
 	uint32_t u0, u1;
 	packPointer(&prd, u0, u1);
-
 
 	// generate ray direction
 	vec3f rayDir;
@@ -219,7 +320,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 		0.f,    // tmin
 		1e20f,  // tmax
 		0.0f,   // rayTime
-		OptixVisibilityMask(GEOMETRY_VISIBLE),
+		OptixVisibilityMask(GEOMETRY_VISIBLE + SOUND_SOURCES_VISIBLE),
 		OPTIX_RAY_FLAG_DISABLE_ANYHIT,
 		0,            // SBT offset
 		1,               // SBT stride
@@ -227,6 +328,6 @@ extern "C" __global__ void __raygen__renderFrame() {
 		u0, u1
 	);
 
-	const unsigned int stride = (MAX_FREQUENCIES + 1) * MAX_DEPTH;
-	memcpy(&(params.energies[stride * rayIndex]), prd.energies, sizeof(float) * stride);
+	const unsigned int stride = getDataArraySize();
+	memcpy(&(params.energies[stride * rayIndex]), prd.data, sizeof(float) * stride);
 }

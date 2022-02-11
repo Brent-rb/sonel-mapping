@@ -1,8 +1,10 @@
 #pragma once
 #include "../Cuda/CudaBuffer.h"
-#include "Models/TriangleMeshSbtData.h"
+#include "Models/SmSbtData.h"
 #include "Models/Model.h"
 #include "Models/Sonel.h"
+#include "Models/SimpelSoundSource.h"
+
 
 class OptixScene {
 public:
@@ -12,62 +14,140 @@ public:
 	void destroy();
 	void clear();
 	void build();
-	void buildTriangles();
+	void buildGeometry();
 	void buildSonels();
+	void buildSoundSources();
 
 	uint32_t getSonelSize() const;
+	uint32_t getSoundSourceSize() const;
 
 	void setModel(Model* newModel);
 	Model* getModel() const;
 
 	void setSonels(std::vector<Sonel>* newSonels, float searchRadius);
 	std::vector<Sonel>* getSonels() const;
-	CUdeviceptr getSonelDevicePointer(uint32_t sonelIndex) const;
 
-	const OptixTraversableHandle& getGeoTraversable() const;
-	const OptixTraversableHandle& getAabbTraversable() const;
-	const OptixTraversableHandle& getInstanceTraversable() const;
+	void setSoundSources(std::vector<SimpleSoundSource>* newSoundSources, float searchRadius);
+	std::vector<SimpleSoundSource>* getSoundSources() const;
+
+	CUdeviceptr getSonelDevicePointer(uint32_t sonelIndex) const;
+	CUdeviceptr getSoundSourceDevicePointer(uint32_t soundSourceIndex) const;
+
+	const OptixTraversableHandle& getGeometryHandle() const;
+	const OptixTraversableHandle& getSonelHandle() const;
+	const OptixTraversableHandle& getInstanceHandle() const;
 	
-	void fill(const uint32_t meshIndex, TriangleMeshSbtData& triangleData) const;
+	void fill(uint32_t meshIndex, SmSbtData& triangleData) const;
 
 protected:
-	void clearMeshBuffers();
+	void clearGeometryBuffers();
 	void clearSonelBuffers();
+	void clearSoundSourceBuffers();
 
-	void prepareTriangleBuffers();
+	void prepareGeometryBuffers();
 	void prepareSonelBuffers();
+	void prepareSoundSourceBuffers();
 
-	void buildTriangleInputs();
-	void buildTextures();
-	void buildSonelAabbInputs();
-	void buildTriangleAccelStructure();
-	void buildSonelAabbAccelStructure();
-	void buildInstanceStructure();
+	void buildGeometryInputs();
+	void buildGeometryTextures();
+	void buildSonelInputs();
+	void buildSoundSourceInputs();
+	void buildGeometryAccelStructure();
+	void buildSonelAccelStructure();
+	void buildSoundSourceAccelStructure();
+	void buildInstanceAccelStructure();
 
 	OptixTraversableHandle buildTraversable(const std::vector<OptixBuildInput>& buildInputs, CudaBuffer& accelBuffer);
 	static OptixTraversableHandle buildTraversable(const OptixDeviceContext& optixContext, const std::vector<OptixBuildInput>& buildInputs, CudaBuffer& accelBuffer);
+	template<class T>
+	static CUdeviceptr getDevicePtr(const CudaBuffer& buffer, uint32_t index) {
+		return buffer.getCuDevicePointer() + (index * sizeof(T));
+	}
+
+	template<class T>
+	static void buildAabb(
+			const std::vector<T>* aabbItems, CudaBuffer& itemBuffer, CudaBuffer& aabbBuffer,
+			std::vector<CUdeviceptr>& cudaPointers, std::vector<OptixBuildInput>& optixInputs, std::vector<uint32_t>& optixInputFlags,
+			float searchRadius
+	) {
+		const auto aabbItemSize = static_cast<uint32_t>(aabbItems->size());
+		if (aabbItemSize == 0) {
+			return;
+		}
+
+		itemBuffer.allocAndUpload(*aabbItems);
+		aabbBuffer.alloc(sizeof(OptixAabb) * aabbItemSize);
+		CUdeviceptr aabbDevicePtr = aabbBuffer.getCuDevicePointer();
+
+		std::vector<OptixAabb> tempAabbs;
+		tempAabbs.resize(aabbItemSize);
+
+		for (uint32_t itemId = 0; itemId < aabbItemSize; itemId++) {
+			// upload the model to the device: the builder
+			const T& item = (*aabbItems)[itemId];
+			const AabbItem& aabbItem = (*aabbItems)[itemId];
+
+			gdt::vec3f position = aabbItem.getPosition();
+			gdt::vec3f min = position - searchRadius;
+			gdt::vec3f max = position + searchRadius;
+			tempAabbs[itemId] = {
+					min.x,
+					min.y,
+					min.z,
+					max.x,
+					max.y,
+					max.z
+			};
+
+			cudaPointers[itemId] = aabbDevicePtr + (sizeof(OptixAabb) * itemId);
+
+			optixInputs[itemId] = {};
+			optixInputs[itemId].type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+
+			if (cudaPointers[itemId] % OPTIX_AABB_BUFFER_BYTE_ALIGNMENT > 0) {
+				printf("[OptixScene] Misaligned\n");
+			}
+
+			optixInputs[itemId].customPrimitiveArray.aabbBuffers = &(cudaPointers[itemId]);
+			optixInputs[itemId].customPrimitiveArray.strideInBytes = sizeof(OptixAabb);
+			optixInputs[itemId].customPrimitiveArray.numPrimitives = 1;
+
+			optixInputFlags[itemId] = OPTIX_GEOMETRY_FLAG_REQUIRE_SINGLE_ANYHIT_CALL;
+
+			optixInputs[itemId].customPrimitiveArray.flags = &optixInputFlags[itemId];
+			optixInputs[itemId].customPrimitiveArray.numSbtRecords = 1;
+			optixInputs[itemId].customPrimitiveArray.sbtIndexOffsetBuffer = 0;
+			optixInputs[itemId].customPrimitiveArray.sbtIndexOffsetSizeInBytes = 0;
+			optixInputs[itemId].customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
+		}
+
+		aabbBuffer.upload(tempAabbs.data(), aabbItemSize);
+	}
 
 protected:
 	const OptixDeviceContext& optixContext;
-	OptixTraversableHandle triangleHandle;
-	OptixTraversableHandle aabbHandle;
+	OptixTraversableHandle geometryHandle;
+	OptixTraversableHandle sonelHandle;
+	OptixTraversableHandle soundSourceHandle;
 	OptixTraversableHandle instanceHandle;
 
 	CUdeviceptr optixInstanceBuffer;
 	std::vector<OptixInstance> optixInstances;
 
-
 	// Model that we will load
 	Model* model;
 	std::vector<Sonel>* sonels;
+	std::vector<SimpleSoundSource>* soundSources;
 
 	uint32_t meshSize;
 	uint32_t sonelSize;
+	uint32_t soundSourceSize;
+	uint32_t instanceSize = 3;
 
-	
-	// Buffer for the accell structure
-	CudaBuffer triangleAccelBuffer;
-	CudaBuffer aabbAccelBuffer;
+	// Buffer for the accel structure
+	CudaBuffer meshAccelBuffer;
+	CudaBuffer sonelAccelBuffer;
+	CudaBuffer soundSourceAccelBuffer;
 	CudaBuffer instanceAccelBuffer;
 
 	// One buffer per mesh
@@ -79,19 +159,28 @@ protected:
 	// Sonel data
 	CudaBuffer sonelAabbBuffer;
 	CudaBuffer sonelBuffer;
-	float radius = 0.5f;
+	float sonelRadius = 0.5f;
+
+	CudaBuffer soundSourceAabbBuffer;
+	CudaBuffer soundSourceBuffer;
+	float soundSourceRadius = 0.5f;
 
 	// Build data
-	std::vector<OptixBuildInput> triangleInputs;
-	std::vector<uint32_t> triangleInputFlags;
-	std::vector<CUdeviceptr> cudaVertices;
-	std::vector<CUdeviceptr> cudaIndices;
-	bool meshBuffersInvalid = false;
+	std::vector<OptixBuildInput> geometryInputs;
+	std::vector<uint32_t> geometryInputFlags;
+	std::vector<CUdeviceptr> cudaGeometryVertices;
+	std::vector<CUdeviceptr> cudaGeometryIndices;
+	bool geometryBuffersInvalid = false;
 
-	std::vector<OptixBuildInput> aabbInputs;
-	std::vector<uint32_t> aabbInputFlags;
-	std::vector<CUdeviceptr> cudaAabbs;
+	std::vector<OptixBuildInput> sonelInputs;
+	std::vector<uint32_t> sonelInputFlags;
+	std::vector<CUdeviceptr> cudaSonelInputs;
 	bool sonelBuffersInvalid = false;
+
+	std::vector<OptixBuildInput> soundSourceInputs;
+	std::vector<uint32_t> soundSourceInputFlags;
+	std::vector<CUdeviceptr> cudaSoundSourceInputs;
+	bool soundSourceBuffersInvalid = false;
 
 	// Texture data
 	std::vector<cudaArray_t> textureArrays;

@@ -2,21 +2,20 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 
-#include "../SonelMapping/Models/Sonel.h"
 #include "CudaHelper.h"
 #include "CudaSonelMapperParams.h"
 #include "CudaRandom.h"
-#include "../SonelMapping/Models/TriangleMeshSbtData.h"
+#include "CudaSceneSettings.h"
 
-#define DIFFUSE_BOUNCE_PROB 0.45f
-#define SPECULAR_BOUNCE_PROD 0.45f
+#include "../SonelMapping/Models/Sonel.h"
+#include "../SonelMapping/Models/SmSbtData.h"
 
 extern "C" __constant__ CudaSonelMapperParams params;
 
 class PerRayData {
 public:
 	__device__ __host__ PerRayData(const CudaRandom& random, const uint32_t index, const float energy):
-            random(random), index(index), dataDepth(0), depth(0), distance(0.0f), energies(energy), specularBounce(false) {
+		random(random), index(index), dataDepth(0), depth(0), distance(0.0f) {
 
 	}
 
@@ -31,9 +30,8 @@ public:
 	uint32_t maxDepth;
 
 	float distance;
-	float energies;
-
-	bool specularBounce;
+	float energy;
+	float timeOffset;
 };
 
 extern "C" __global__ void __anyhit__sonelRadiance() {
@@ -41,7 +39,7 @@ extern "C" __global__ void __anyhit__sonelRadiance() {
 }
 
 extern "C" __global__ void __closesthit__sonelRadiance() {
-	const TriangleMeshSbtData& sbtData = *(const TriangleMeshSbtData*)optixGetSbtDataPointer();
+	const SmSbtData& sbtData = *(const SmSbtData*)optixGetSbtDataPointer();
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 
 	// ------------------------------------------------------------------
@@ -97,21 +95,24 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
         prd.depth + 1 == prd.maxDepth) {
 		// Absorbed
 		sonel.time = 0;
+		sonel.distance = 0;
 		sonel.energy = 0;
 		return;
 	}
 
 	gdt::vec3f newRayDirection;
-	prd.distance += length(surfPos - rayOrigin);
+	prd.distance += (length(surfPos - rayOrigin)) * SCALE;
 
 	prd.depth += 1;
 	if (bounceProbability < DIFFUSE_BOUNCE_PROB) {
 		prd.dataDepth += 1;
         sonel.frequency = params.sonelMapData->frequencies[params.globalFrequencyIndex];
         sonel.frequencyIndex = params.globalFrequencyIndex;
-		sonel.energy = prd.energies;
+		sonel.energy = prd.energy;
 		sonel.position = surfPos;
-		sonel.time = prd.distance / params.sonelMapData->soundSpeed;
+		sonel.distance = prd.distance;
+		sonel.time = (prd.distance / params.sonelMapData->soundSpeed) + prd.timeOffset;
+		// printf("Sonel Time %f\n", sonel.time);
 		sonel.incidence = rayDir;
 
 		prd.random.randomVec3fHemi(shadingNormal, newRayDirection);
@@ -156,6 +157,7 @@ extern "C" __global__ void __miss__sonelRadiance() {
 	Sonel& sonel = prd.sonels[sonelIndex];
 
 	sonel.time = 0;
+	sonel.distance = 0;
 	sonel.energy = 0;
 }
 
@@ -169,26 +171,27 @@ extern "C" __global__ void __raygen__generateSonelMap() {
 
 	SoundSource& soundSource = params.sonelMapData->soundSources[params.soundSourceIndex];
 	SoundFrequency& soundFrequency = soundSource.frequencies[params.localFrequencyIndex];
-
 	
 	float& decibels = soundFrequency.decibels[decibelIndex];
 	if (decibels > -0.000001 && decibels < 0.000001) {
 		return;
 	}
 
-	float energy = (powf(10, decibels / 10) / soundFrequency.sonelAmount) * 1e-12f;
+	float energy = (powf(10.0f, decibels / 10) / soundFrequency.sonelAmount);
+	// printf("Simulating with sonel energy: %f, %f, %d\n", energy, decibels, soundFrequency.sonelAmount);
 
 	PerRayData prd = PerRayData(random, sonelIndex, energy);
 	prd.maxDepth = soundFrequency.sonelMaxDepth;
 	prd.sonels = soundFrequency.sonels;
-	prd.distance = decibelIndex * params.sonelMapData->timestep * params.sonelMapData->soundSpeed;
+	prd.distance = 0;
+	prd.timeOffset = decibelIndex * params.sonelMapData->timestep;
+	prd.energy = energy;
 
 	// the values we store the PRD pointer in:
 	uint32_t u0, u1;
 	packPointer(&prd, u0, u1);
 
 	gdt::vec3f rayDirection;
-
 	prd.random.randomVec3fHemi(soundSource.direction, rayDirection);
 
 	optixTrace(

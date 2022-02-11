@@ -18,12 +18,17 @@ struct SonelReceiverParams {
 
 	uint32_t frequencySize;
 	uint32_t timestepSize;
+	uint32_t maxDepth;
+	uint32_t rayAmount;
 
 	float* energies;
 
 	float timestep;
 	float duration;
 	float soundSpeed;
+	float sonelRadius;
+	float soundSourceRadius;
+	float timeOffset;
 
 	OptixTraversableHandle traversable;
 };
