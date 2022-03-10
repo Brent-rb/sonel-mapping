@@ -8,7 +8,7 @@
 #include <cuda_runtime.h>
 
 #define MAX_FREQUENCIES 8
-#define MAX_SONELS 20
+#define MAX_SONELS 10
 
 #define DATA_SIZE 2
 #define DATA_TIME_OFFSET 0

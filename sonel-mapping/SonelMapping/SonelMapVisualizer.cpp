@@ -14,9 +14,11 @@ SonelMapVisualizer::SonelMapVisualizer(
 	hitAhEnabled = true;
 }
 
-void SonelMapVisualizer::setSonelArray(std::vector<std::vector<Sonel>>* newSonelArray) {
+void SonelMapVisualizer::setSonelArray(std::vector<Sonel>* newSonelArray) {
 	this->sonelArray = newSonelArray;
 	timestep = 0;
+
+	uploadSonelMapSnapshot();
 }
 
 /*! set camera to render with */
@@ -56,12 +58,8 @@ void SonelMapVisualizer::uploadSonelMapSnapshot() {
 
 	auto start = std::chrono::high_resolution_clock::now();
 	if (sonelArray != nullptr) {
-		std::vector<Sonel>& sonels = (*sonelArray)[timestep];
-		if (sonels.size() > 0) {
-			optixScene.setSonels(&sonels, 5.0f);
-			optixScene.build();
-			createHitRecords();
-		}
+		optixScene.setSonels(sonelArray, 0.15f);
+		createHitRecords();
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -96,7 +94,8 @@ void SonelMapVisualizer::execute() {
 		return;
 	}
 
-	uploadSonelMapSnapshot();
+	launchParams.timeIndex = timestep;
+	timestep++;
 	launchParams.traversable = optixScene.getInstanceHandle();
 
 	auto start = std::chrono::high_resolution_clock::now();

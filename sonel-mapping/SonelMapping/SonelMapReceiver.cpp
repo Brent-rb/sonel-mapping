@@ -9,6 +9,8 @@
 
 extern "C" char embedded_receiver_code[];
 
+#define SEARCH_RADIUS 0.31f
+
 SonelMapReceiver::SonelMapReceiver(
 	const OptixSetup& optixSetup,
 	OptixScene& optixScene
@@ -26,8 +28,8 @@ void SonelMapReceiver::initialize(SonelMapReceiverConfig newConfig) {
 	launchParams.soundSpeed = newConfig.soundSpeed;
 	launchParams.timestep = newConfig.timestep;
 	launchParams.timestepSize = newConfig.timestepSize;
-	launchParams.sonelRadius = 10.0f;
-	launchParams.soundSourceRadius = 10.0f;
+	launchParams.sonelRadius = SEARCH_RADIUS;
+	launchParams.soundSourceRadius = SEARCH_RADIUS;
 	launchParams.rayAmount = newConfig.rayAmount;
 
 	init();
@@ -66,7 +68,7 @@ void SonelMapReceiver::simulate() {
 }
 
 void SonelMapReceiver::configureScene() {
-	optixScene.setSonels(sonels, 5.0f);
+	optixScene.setSonels(sonels, SEARCH_RADIUS);
 	optixScene.build();
 	launchParams.traversable = optixScene.getInstanceHandle();
 }
@@ -126,7 +128,7 @@ void SonelMapReceiver::addLaunchToEchogram() {
 		}
 	}
 
-	float sonelArea = (10.0f * 10.0f * 3.141592653589793238f) * 0.01f;
+	float sonelArea = (SEARCH_RADIUS * SEARCH_RADIUS * 3.141592653589793238f);
 	float brdf = 1.0f / (2.0f * 3.141592653589793238f);
 	for (unsigned int time = 0; time < min(config.timestepSize, highestTimestep); time++) {
 		for (unsigned int frequency = 0; frequency < config.frequencySize; frequency++) {
@@ -144,11 +146,11 @@ void SonelMapReceiver::writeEchogram() {
 		std::cout << timestep * config.timestep;
 		for (unsigned int frequency = 0; frequency < launchParams.frequencySize; frequency++) {
 			float energy = echogram[timestep][frequency];
-			float minEnergy = 10.0f / config.rayAmount;
+			float minEnergy = 1.0f;
 			double decibel = 0;
 
 			if (energy >= minEnergy)
-				decibel = (log10(energy * config.rayAmount) * 10.0);
+				decibel = (log10(energy) * 10.0);
 
 			std::cout << "; " << decibel;
 		}

@@ -32,10 +32,11 @@ struct Scene {
 };
 
 Scene loadSponza();
+Scene loadBox();
 
 extern "C" int main(int argC, char** argV) {
 	try {
-		Scene scene = loadSponza();
+		Scene scene = loadBox();
 
 		// something approximating the scale of the world, so the
 		// camera knows how much to move for any given user interaction:
@@ -66,6 +67,45 @@ extern "C" int main(int argC, char** argV) {
 	}
 
 	return 0;
+}
+
+Scene loadBox() {
+    Model* model = loadObj("../../models/box4x4.obj");
+    gdt::vec3f modelCenter = model->bounds.center();
+
+    printf("Center %f, %f, %f\n", modelCenter.x, modelCenter.y, modelCenter.z);
+    Camera camera = {
+        /*from*/vec3f(1.0, 1.0, -1.0),
+        /* at */vec3f(3.5, 3.5, -3.5),
+        /* up */vec3f(0.f,1.f,0.f)
+    };
+
+    SoundFrequency frequency(8000, 10000, 128, 0.0206);
+    std::vector<float> decibels;
+    decibels.push_back(90.14f);
+
+    frequency.setDecibels(decibels);
+    std::vector<SoundFrequency> frequencies;
+    frequencies.push_back(frequency);
+
+    SoundSource source;
+
+    source.direction = normalize(vec3f(0.0f, 0.0f, 0.0f));
+    source.position = vec3f(3.5, 3.5, -3.5);
+    source.setFrequencies(frequencies);
+
+    std::vector<SoundSource> sources;
+    sources.push_back(source);
+
+    return {
+            model,
+            camera,
+            sources,
+            2.0f, // Seconds
+            343.0f, // m/s
+            0.15f, // meter
+            0.005f
+    };
 }
 
 Scene loadSponza() {

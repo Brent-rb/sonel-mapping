@@ -104,14 +104,16 @@ struct PerRayData {
 
 	float time = 0.0f;
 	float distance = 0.0f;
+    unsigned int bounce = 0;
 
 	__device__ unsigned int getDataIndex(unsigned int frequencyIndex) {
 		return getSonelIndex(frequencyIndex, dataIndices[frequencyIndex]);
 	}
 
 	__device__ void addSoundSourceHit(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
-		const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
-		const unsigned int dataIndex = getDataIndex(soundSource.frequencyIndex);
+		// const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
+        const float absorption[] = { 0.0206, 0.0206, 0.0206, 0.0206 };
+        const unsigned int dataIndex = getDataIndex(soundSource.frequencyIndex);
 		if ((dataIndices[soundSource.frequencyIndex] + 1) >= MAX_SONELS) {
 			return;
 		}
@@ -127,14 +129,11 @@ struct PerRayData {
 	}
 
 	__device__ void addSonelHit(const Sonel& sonel) {
-		const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
-		const unsigned int dataIndex = getDataIndex(sonel.frequencyIndex);
+		// const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
+		const float absorption[] = { 0.0206, 0.0206, 0.0206, 0.0206 };
+        const unsigned int dataIndex = getDataIndex(sonel.frequencyIndex);
 		if ((dataIndices[sonel.frequencyIndex] + 1) >= MAX_SONELS) {
 			return;
-		}
-
-		if (sonel.frequencyIndex == 0 || sonel.frequencyIndex == 3) {
-			printf("Distance[%d] %f, %f, %f\n", sonel.frequencyIndex, sonel.distance, distance, sonel.distance + distance);
 		}
 
 		float totalDistance = sonel.distance + distance;
@@ -160,7 +159,7 @@ extern "C" __global__ void __closesthit__radiance() {
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 
 	if (sbtData.type == SOUND_SOURCE) {
-		// printf("Sound Source Hit");
+		printf("Sound Source Hit on bounce %d\n", prd.bounce);
 		const SimpleSoundSource& soundSource = *(sbtData.soundSource);
 		prd.addSoundSourceHit(soundSource, rayOrigin, rayDirection);
 		return;
@@ -181,7 +180,6 @@ extern "C" __global__ void __closesthit__radiance() {
 	float newRayMax = 1e20f;
 	unsigned int newRayMask;
 	unsigned int newRayFlags = OPTIX_RAY_FLAG_NONE;
-	char* newRayType;
 
 	float decisionProbability = prd.random.randomF(0.0f, DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD);
 	if (decisionProbability < DIFFUSE_BOUNCE_PROB) {
@@ -198,6 +196,7 @@ extern "C" __global__ void __closesthit__radiance() {
 		prd.random.randomVec3fHemi(shadingNormal, newRayDir);
 	}
 
+    prd.bounce++;
 	// printf("%s from(%f, %f, %f), to(%f, %f, %f)\n", newRayType, hitPosition.x, hitPosition.y, hitPosition.z, newRayDir.x, newRayDir.y, newRayDir.z);
 	optixTrace(
 		params.traversable,
@@ -240,6 +239,7 @@ extern "C" __global__ void __intersection__radiance() {
 	const SmSbtData* sbtData = (const SmSbtData*)optixGetSbtDataPointer();
 	const SbtDataType type = sbtData->type;
 	float intersectionT = -1.0f;
+    bool hit = false;
 
 	if (type == SONEL) {
 		const Sonel& sonel = *(sbtData->sonel);
@@ -248,9 +248,11 @@ extern "C" __global__ void __intersection__radiance() {
 		float length = gdt::length(center - rayOrigin);
 		if (length < params.sonelRadius) {
 			intersectionT = 0.11f;
+            hit = true;
 		}
 	}
 	else if (type == SOUND_SOURCE) {
+        printf("SoundSource intersection");
 		const SimpleSoundSource& soundSource = *(sbtData->soundSource);
 
 		gdt::vec3f center = soundSource.position;
@@ -266,11 +268,13 @@ extern "C" __global__ void __intersection__radiance() {
 			intersectionT = -1.0;
 		}
 		else{
+            printf("Sound source any hit\n");
 			intersectionT = (-b - sqrt(discriminant)) / (2.0 * a);
+            hit = true;
 		}
 	}
 
-	if (intersectionT > 0.000000000000000000000001f) {
+	if (hit) {
 		optixReportIntersection(intersectionT, 0);
 	}
 }
@@ -311,7 +315,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 
 	// generate ray direction
 	vec3f rayDir;
-	prd.random.randomVec3fHemi(params.camera.direction, rayDir);
+	prd.random.randomVec3fSphere(rayDir);
 
 	optixTrace(
 		params.traversable,
@@ -321,7 +325,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 		1e20f,  // tmax
 		0.0f,   // rayTime
 		OptixVisibilityMask(GEOMETRY_VISIBLE + SOUND_SOURCES_VISIBLE),
-		OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+        OPTIX_RAY_FLAG_NONE,
 		0,            // SBT offset
 		1,               // SBT stride
 		0,            // missSBTIndex

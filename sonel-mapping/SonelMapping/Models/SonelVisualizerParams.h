@@ -36,6 +36,7 @@ struct SonelVisualizerParams {
 	} camera;
 
     uint32_t frequencySize;
+    uint32_t timeIndex;
 
 	OptixTraversableHandle traversable;
 };

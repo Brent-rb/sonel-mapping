@@ -22,7 +22,7 @@ public:
 	}
 
 	__device__ __host__ float randomF() {
-		float randomValue = (float)curand(&curandState) / (float)UINT32_MAX;
+		float randomValue = curand_uniform(&curandState);
 		// printf("Random value: %f\n", randomValue);
 
 		return randomValue;
@@ -36,7 +36,7 @@ public:
 		randomVec3fSphere(randomVector);
 
 		if (gdt::dot(direction, randomVector) < 0.0f) {
-			randomVector *= 1.0f;
+			randomVector *= -1.0f;
 		}
 	}
 

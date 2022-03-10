@@ -470,3 +470,4 @@ common/3rdParty/glfw/src/cmake_install.cmake
 *.cmake
 common/3rdParty/glfw/cmake_uninstall.cmake.in
 *.sln
+cmake-build-debug-visual-studio

@@ -93,6 +93,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 	float bounceProbability = prd.random.randomF();
 	if (bounceProbability > (DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD) ||
         prd.depth + 1 == prd.maxDepth) {
+        // printf("Ended ray at %d bounces, max depth %d\n", prd.depth, prd.maxDepth);
 		// Absorbed
 		sonel.time = 0;
 		sonel.distance = 0;
@@ -116,10 +117,14 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 		sonel.incidence = rayDir;
 
 		prd.random.randomVec3fHemi(shadingNormal, newRayDirection);
+        // printf("[Diff] Normal (%f, %f, %f), New Ray(%f, %f, %f)\n", shadingNormal.x, shadingNormal.y, shadingNormal.z, newRayDirection.x, newRayDirection.y, newRayDirection.z);
 	}
 	else {
 		newRayDirection = shadingNormal * 2 * dot(shadingNormal, rayDir) - rayDir;
+        // printf("[Spec] Normal (%f, %f, %f), New Ray(%f, %f, %f)\n", shadingNormal.x, shadingNormal.y, shadingNormal.z, newRayDirection.x, newRayDirection.y, newRayDirection.z);
 	}
+
+
 
 	// the values we store the PRD pointer in:
 	uint32_t u0, u1;
@@ -150,6 +155,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 // ------------------------------------------------------------------------------
 
 extern "C" __global__ void __miss__sonelRadiance() {
+    // printf("Miss\n");
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 
 	uint32_t sonelIndex = (prd.index * prd.maxDepth) + prd.dataDepth;
@@ -177,7 +183,7 @@ extern "C" __global__ void __raygen__generateSonelMap() {
 		return;
 	}
 
-	float energy = (powf(10.0f, decibels / 10) / soundFrequency.sonelAmount);
+	float energy = (powf(10.0f, decibels / 10.0f) / (soundFrequency.sonelAmount * 1.0f));
 	// printf("Simulating with sonel energy: %f, %f, %d\n", energy, decibels, soundFrequency.sonelAmount);
 
 	PerRayData prd = PerRayData(random, sonelIndex, energy);
@@ -192,7 +198,7 @@ extern "C" __global__ void __raygen__generateSonelMap() {
 	packPointer(&prd, u0, u1);
 
 	gdt::vec3f rayDirection;
-	prd.random.randomVec3fHemi(soundSource.direction, rayDirection);
+	prd.random.randomVec3fSphere(rayDirection);
 
 	optixTrace(
 		params.traversable,

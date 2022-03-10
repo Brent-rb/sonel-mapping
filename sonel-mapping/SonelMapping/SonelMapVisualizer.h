@@ -22,7 +22,7 @@ public:
 	void initialize();
 
     void setFrequencySize(uint32_t size);
-	void setSonelArray(std::vector<std::vector<Sonel>>* newSonelArray);
+	void setSonelArray(std::vector<Sonel>* newSonelArray);
 
 	void execute() override;
 
@@ -50,7 +50,7 @@ protected:
 	void configurePipelineLinkOptions(OptixPipelineLinkOptions &pipelineLinkOptions) override;
 
 protected:
-	std::vector<std::vector<Sonel>>* sonelArray;
+	std::vector<Sonel>* sonelArray;
 
 	CudaBuffer colorBuffer;
 

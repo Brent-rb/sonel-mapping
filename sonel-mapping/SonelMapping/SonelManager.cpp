@@ -25,7 +25,7 @@ SonelManager::SonelManager(
 	sonelMapper.initialize(sonelMapperConfig);
 
 	sonelMapReceiver.initialize({
-		10000,
+		1000,
 		sonelMapperConfig.soundSpeed,
 		sonelMapperConfig.echogramDuration,
 		sonelMapperConfig.timestep,
@@ -46,12 +46,13 @@ void SonelManager::calculate() {
 	std::vector<Sonel>* sonels = sonelMapper.getSonelArray();
 	sonelMapReceiver.setSonels(sonels);
 	simpleSoundSources = SimpleSoundSource::from(sonelMapper.getSonelMapData());
-	optixScene.setSoundSources(&simpleSoundSources, 10.0f);
+	optixScene.setSoundSources(&simpleSoundSources, 0.15f);
+    optixScene.build();
 
 	sonelMapReceiver.execute();
 
     // sonelVisualizer.setFrequencySize(sonelMapper.getSonelMapData().frequencySize);
-	// sonelVisualizer.setSonelArray(sonelMapper.getSonelArrays());
+	// sonelVisualizer.setSonelArray(sonels);
 }
 
 void SonelManager::render() {
