@@ -120,7 +120,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
         // printf("[Diff] Normal (%f, %f, %f), New Ray(%f, %f, %f)\n", shadingNormal.x, shadingNormal.y, shadingNormal.z, newRayDirection.x, newRayDirection.y, newRayDirection.z);
 	}
 	else {
-		newRayDirection = shadingNormal * 2 * dot(shadingNormal, rayDir) - rayDir;
+		newRayDirection = (2 * dot(shadingNormal, rayDir) * shadingNormal) - rayDir;
         // printf("[Spec] Normal (%f, %f, %f), New Ray(%f, %f, %f)\n", shadingNormal.x, shadingNormal.y, shadingNormal.z, newRayDirection.x, newRayDirection.y, newRayDirection.z);
 	}
 

@@ -51,9 +51,9 @@ public:
 		float theta = randomF(0.0f, 2 * E_PI);
 		float alpha = randomF(0.0f, 2 * E_PI);
 
-		randomVector.x = cosf(theta) * cosf(alpha);
-		randomVector.y = cosf(theta) * sinf(alpha);
-		randomVector.z = sinf(theta);
+		randomVector.x = sinf(theta) * cosf(alpha);
+		randomVector.y = sinf(theta) * sinf(alpha);
+		randomVector.z = cosf(theta);
 	}
 
 	__device__ __host__ gdt::vec3f randomVec3fSphere() {
