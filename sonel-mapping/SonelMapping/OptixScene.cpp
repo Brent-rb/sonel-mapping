@@ -72,6 +72,8 @@ void OptixScene::buildGeometry() {
 	buildGeometryInputs();
 	buildGeometryTextures();
 	buildGeometryAccelStructure();
+
+    printf("[OptixScene] Geometry built.\n");
 }
 
 void OptixScene::buildSonels() {
@@ -79,6 +81,8 @@ void OptixScene::buildSonels() {
 	prepareSonelBuffers();
 	buildSonelInputs();
 	buildSonelAccelStructure();
+
+    printf("[OptixScene] Sonels built.\n");
 }
 
 void OptixScene::buildSoundSources() {
@@ -86,6 +90,8 @@ void OptixScene::buildSoundSources() {
 	prepareSoundSourceBuffers();
 	buildSoundSourceInputs();
 	buildSoundSourceAccelStructure();
+
+    printf("[OptixScene] SoundSources built.\n");
 }
 
 uint32_t OptixScene::getSonelSize() const {

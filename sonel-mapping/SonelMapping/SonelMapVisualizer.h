@@ -16,7 +16,9 @@ class SonelMapVisualizer: public SmOptixProgram<SonelVisualizerParams, EmptyReco
 public:
 	SonelMapVisualizer(
 		const OptixSetup& optixSetup,
-		OptixScene& cudaScene
+		OptixScene& cudaScene,
+        float timestep,
+        float sonelRadius
 	);
 
 	void initialize();
@@ -25,6 +27,8 @@ public:
 	void setSonelArray(std::vector<Sonel>* newSonelArray);
 
 	void execute() override;
+    void nextFrame();
+    void previousFrame();
 
 	/*! resize frame buffer to given resolution */
 	void resize(const vec2i& newSize);
@@ -51,12 +55,9 @@ protected:
 
 protected:
 	std::vector<Sonel>* sonelArray;
-
 	CudaBuffer colorBuffer;
-
 	Camera lastSetCamera;
-
-	uint32_t timestep;
+	uint32_t timestep = 0;
 };
 
 #endif

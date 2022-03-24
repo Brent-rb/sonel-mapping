@@ -22,10 +22,7 @@ public:
 	}
 
 	__device__ __host__ float randomF() {
-		float randomValue = curand_uniform(&curandState);
-		// printf("Random value: %f\n", randomValue);
-
-		return randomValue;
+		return curand_uniform(&curandState);
 	}
 
 	__device__ __host__ float randomF(float min, float max) {
@@ -51,9 +48,14 @@ public:
 		float theta = randomF(0.0f, 2 * E_PI);
 		float alpha = randomF(0.0f, 2 * E_PI);
 
-		randomVector.x = sinf(theta) * cosf(alpha);
-		randomVector.y = sinf(theta) * sinf(alpha);
-		randomVector.z = cosf(theta);
+        float cosTheta = cosf(theta);
+        float sinTheta = sinf(theta);
+        float cosAlpha = cosf(alpha);
+        float sinAlpha = sinf(alpha);
+
+		randomVector.x = cosTheta * cosAlpha;
+		randomVector.z = sinTheta * cosAlpha;
+		randomVector.y = sinAlpha;
 	}
 
 	__device__ __host__ gdt::vec3f randomVec3fSphere() {

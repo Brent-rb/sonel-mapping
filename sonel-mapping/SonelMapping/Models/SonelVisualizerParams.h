@@ -37,6 +37,8 @@ struct SonelVisualizerParams {
 
     uint32_t frequencySize;
     uint32_t timeIndex;
+    float timestep;
+    float sonelRadius;
 
 	OptixTraversableHandle traversable;
 };

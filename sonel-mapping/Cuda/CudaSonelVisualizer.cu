@@ -20,6 +20,7 @@
 
 #include "CudaHelper.h"
 #include "CudaRandom.h"
+#include "CudaDeviceHelper.h"
 
 #include "../SonelMapping/SonelVisibilityFlags.h"
 #include "../SonelMapping/Models/SonelVisualizerParams.h"
@@ -28,8 +29,6 @@
 #include "../../common/gdt/gdt/math/vec.h"
 
 using namespace gdt;
-
-#define RADIUS 5.0f
 
 /*! launch parameters in constant memory, filled in by optix upon
 	optixLaunch (this gets filled in from the buffer we pass to
@@ -56,13 +55,26 @@ struct PerRayData {
 // one group of them to set up the SBT)
 //------------------------------------------------------------------------------
 
-
 extern "C" __global__ void __closesthit__radiance() {
     const float3 rayDirectionOptix = optixGetWorldRayDirection();
+    const float3 rayOriginOptix = optixGetWorldRayOrigin();
+    gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
     gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
+    gdt::vec3f surfacePosition, geometryNormal, shadingNormal;
 
 	const SmSbtData& sbtData = *(const SmSbtData*) optixGetSbtDataPointer();
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+
+    if (sbtData.type == SOUND_SOURCE) {
+        const SimpleSoundSource soundSource = *(sbtData.soundSource);
+        prd.pixelColor = vec3f(0.5f, 0.1f, 0.7f);
+        gdt::vec3f soundSourceHit = getSoundSourceHit(soundSource, launchParams.sonelRadius, rayOrigin, rayDirection);
+        gdt::vec3f soundSourceNormal = normalize(soundSource.position - soundSourceHit);
+        prd.pixelColor *=  dot(soundSourceNormal, rayDirection);
+        return;
+    }
+
+    getSurfaceData(sbtData, surfacePosition, geometryNormal, shadingNormal);
 
 	// ------------------------------------------------------------------
 	// gather some basic hit information
@@ -90,21 +102,14 @@ extern "C" __global__ void __closesthit__radiance() {
 	// start with some ambient term
 	vec3f pixelColor = diffuseColor;
 
-	// ------------------------------------------------------------------
-	// compute shadow
-	// ------------------------------------------------------------------
-	const vec3f surfPos
-		= (1.f - u - v) * sbtData.vertex[index.x]
-		+ u * sbtData.vertex[index.y]
-		+ v * sbtData.vertex[index.z];
 
     uint32_t u0, u1;
     packPointer(&prd, u0, u1);
 
     optixTrace(
             launchParams.traversable,
-            surfPos,
-            -rayDirection,
+            surfacePosition,
+            -shadingNormal,
             0.00001f,    // tmin
             1.0f,  // tmax
             0.0f,   // rayTime
@@ -131,10 +136,22 @@ extern "C" __global__ void __closesthit__radiance() {
 
     // printf("[CudaSonelVisualizer] Setting pixel\n");
     if (energy < 0.001) {
-        prd.pixelColor = vec3f(pixelColor.x, pixelColor.y, pixelColor.z);
+        prd.pixelColor = shadingNormal;
+        if (prd.pixelColor.x < 0.0) {
+            prd.pixelColor.x = 0.5f;
+        }
+        if (prd.pixelColor.y < 0.0) {
+            prd.pixelColor.y = 0.5f;
+        }
+        if (prd.pixelColor.z < 0.0) {
+            prd.pixelColor.z = 0.5f;
+        }
+
+        prd.pixelColor *= dot(shadingNormal, rayDirection);
     }
     else {
-        prd.pixelColor = vec3f(energy * 100.0f, 0.0, frequency / (launchParams.frequencySize * 1.0f));
+        // printf("Energy %f\n", energy);
+        prd.pixelColor = vec3f(energy / 400000.0f, 0.0, 0.5f);
     }
 }
 
@@ -143,35 +160,43 @@ extern "C" __global__ void __anyhit__radiance() {
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
 
 	// printf("AnyHit \n");
-	if (sbtData.sonel != nullptr) {
+	if (sbtData.type == SONEL) {
 		// printf("AnyHit Sonel Frequency: %f Energy: %f\n", sbtData.sonel->frequency, sbtData.sonel->data);
 		prd.data[sbtData.sonel->frequencyIndex] += sbtData.sonel->energy;
 		prd.hits[sbtData.sonel->frequencyIndex]++;
 		optixIgnoreIntersection();
 	}
-    else {
-        optixIgnoreIntersection();
+    else if (sbtData.type == SOUND_SOURCE) {
+
     }
 }
 
 extern "C" __global__ void __intersection__radiance() {
 	const SmSbtData* sbtData = (const SmSbtData*)optixGetSbtDataPointer();
-	const Sonel* sonelPtr = sbtData->sonel;
+    const float3 rayOriginOptix = optixGetWorldRayOrigin();
+    const float3 rayDirectionOptix = optixGetWorldRayDirection();
+    gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
+    gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
 	
-	if (sonelPtr != nullptr) {
-        const float3 rayOriginOptix = optixGetWorldRayOrigin();
-        const float3 rayDirectionOptix = optixGetWorldRayDirection();
-        gdt::vec3f rayOrigin(rayOriginOptix.x, rayOriginOptix.y, rayOriginOptix.z);
-        gdt::vec3f rayDirection(rayDirectionOptix.x, rayDirectionOptix.y, rayDirectionOptix.z);
-
+	if (sbtData->type == SONEL) {
+        const Sonel* sonelPtr = sbtData->sonel;
         const gdt::vec3f center = sonelPtr->position;
         const float length = gdt::length(center - rayOrigin);
+        const unsigned int timeIndex = floor((sonelPtr->time / launchParams.timestep) + 0.5);
         // printf("[Intersection] Sonel(%.2f, %.2f, %.2f), Origin(%.2f, %.2f, %.2f) distance %.2f\n", center.x, center.y, center.z, rayOrigin.x, rayOrigin.y, rayOrigin.z, length);
 
-		if (length < RADIUS) {
+		if (length < launchParams.sonelRadius && sonelPtr->time && timeIndex == launchParams.timeIndex) {
             optixReportIntersection(0.001f, 0);
         }
 	}
+    if (sbtData->type == SOUND_SOURCE) {
+        const SimpleSoundSource soundSource = *(sbtData->soundSource);
+        float t = getSoundSourceHitT(soundSource, launchParams.sonelRadius, rayOrigin, rayDirection);
+
+        if (t > -0.99) {
+            optixReportIntersection(t, 0);
+        }
+    }
 }
 
 
@@ -213,7 +238,6 @@ extern "C" __global__ void __raygen__renderFrame() {
 	uint32_t u0, u1;
 	packPointer(&prd, u0, u1);
 
-
 	// normalized screen plane position, in [0,1]^2
 	const vec2f screen(vec2f(screenX + prd.random.randomF(), screenY + prd.random.randomF())
 		/ vec2f(launchParams.frame.size));
@@ -230,7 +254,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 		0.f,    // tmin
 		1e20f,  // tmax
 		0.0f,   // rayTime
-		OptixVisibilityMask(GEOMETRY_VISIBLE),
+		OptixVisibilityMask(GEOMETRY_VISIBLE + SOUND_SOURCES_VISIBLE),
         OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
 		RADIANCE_RAY_TYPE,            // SBT offset
 		RAY_TYPE_COUNT,               // SBT stride

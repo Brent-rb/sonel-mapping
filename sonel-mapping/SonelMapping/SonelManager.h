@@ -13,6 +13,8 @@ public:
 
 	void calculate();
 	void render();
+    void nextFrame();
+    void previousFrame();
 
 	/*! resize frame buffer to given resolution */
 	void resize(const vec2i& newSize);

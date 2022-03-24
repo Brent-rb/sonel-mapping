@@ -9,7 +9,7 @@
 
 extern "C" char embedded_receiver_code[];
 
-#define SEARCH_RADIUS 0.31f
+#define SEARCH_RADIUS 0.15f
 
 SonelMapReceiver::SonelMapReceiver(
 	const OptixSetup& optixSetup,
@@ -46,14 +46,11 @@ void SonelMapReceiver::execute() {
 	createHitRecords();
 	initEchogram();
 
-	for (uint32_t timeIndex = 0; timeIndex < 1; timeIndex++) {
-		launchParams.timeOffset = timeIndex * config.timestep;
-
-		printf("Simulating\n");
-		simulate();
-		printf("Adding to echogram\n");
-		addLaunchToEchogram();
-	}
+    launchParams.timeOffset = 0;
+    printf("Simulating\n");
+    simulate();
+    printf("Adding to echogram\n");
+    addLaunchToEchogram();
 
 	writeEchogram();
 }
@@ -68,7 +65,7 @@ void SonelMapReceiver::simulate() {
 }
 
 void SonelMapReceiver::configureScene() {
-	optixScene.setSonels(sonels, SEARCH_RADIUS);
+	// optixScene.setSonels(sonels, SEARCH_RADIUS);
 	optixScene.build();
 	launchParams.traversable = optixScene.getInstanceHandle();
 }
@@ -86,45 +83,47 @@ void SonelMapReceiver::addLaunchToEchogram() {
 	// Storage for current launch
 	std::vector<float> rtData;
 	std::vector<std::vector<float>> tempEchogram;
-	std::vector<std::vector<float>> hits;
+    std::vector<std::vector<float>> hits;
+
 	rtData.resize(bufferSize);
 	energyBuffer.download(rtData.data(), bufferSize);
 
-	hits.resize(config.timestepSize);
+    hits.resize(config.timestepSize);
 	tempEchogram.resize(config.timestepSize);
 	for (unsigned int timestep = 0; timestep < config.timestepSize; timestep++) {
-		hits[timestep].resize(MAX_FREQUENCIES, 0.0f);
 		tempEchogram[timestep].resize(MAX_FREQUENCIES, 0.0f);
+        hits[timestep].resize(MAX_FREQUENCIES, 0.0f);
 	}
 
 	uint32_t rayStride = getDataArraySize();
 	for (unsigned int rayIndex = 0; rayIndex < config.rayAmount; rayIndex++) {
 		uint32_t rayStart = rayIndex * rayStride;
+        float rayHits = rtData[rayStart] + ARRAY_HEADER_HITS_OFFSET;
+
+        // printf("[SonelMapReceiver] Ray[%d] hit %d sonels\n", rayIndex, static_cast<unsigned int>(rayHits));
 
 		for (unsigned int frequencyIndex = 0; frequencyIndex < MAX_FREQUENCIES; frequencyIndex++) {
-			for (unsigned int sonelIndex = 0; sonelIndex < MAX_SONELS; sonelIndex++) {
-				uint32_t sonelStart = rayStart + getSonelIndex(frequencyIndex, sonelIndex);
-				float timestamp = rtData[sonelStart + DATA_TIME_OFFSET];
-				float energy = rtData[sonelStart + DATA_ENERGY_OFFSET];
-				auto timeIndex = static_cast<uint32_t>(round(timestamp / config.timestep));
+            for (unsigned int sonelIndex = 0; sonelIndex < MAX_SONELS; sonelIndex++) {
+                uint32_t sonelStart = rayStart + getSonelIndex(frequencyIndex, sonelIndex);
+                float timestamp = rtData[sonelStart + DATA_TIME_OFFSET];
+                float energy = rtData[sonelStart + DATA_ENERGY_OFFSET];
+                auto timeIndex = static_cast<uint32_t>(floor((timestamp / config.timestep) + 0.5));
 
-				// When we encounter a 0 value we are probably done with this frequency
-				// Timestamp COULD be 0 but unlikely
-				if (energy < 0.000000000001f || timestamp < 0.00000000001f) {
-					// printf("Skipped %f %f\n", energy, timestamp);
-					break;
-				}
+                // When we encounter a 0 value we are probably done with this frequency
+                // Timestamp COULD be 0 but unlikely
+                if (energy < 0.000000000001f || timestamp < 0.00000000001f) {
+                    break;
+                }
 
-				// Outside of range
-				if (timeIndex < 0 || timeIndex >= echogram.size()) {
-					printf("Skipped because outside %d\n", timeIndex);
-					continue;
-				}
+                // Outside of range
+                if (timeIndex < 0 || timeIndex >= echogram.size()) {
+                    continue;
+                }
 
-				tempEchogram[timeIndex][frequencyIndex] += energy;
-				hits[timeIndex][frequencyIndex] += 1.0f;
-				highestTimestep = max(timeIndex, highestTimestep);
-			}
+                tempEchogram[timeIndex][frequencyIndex] += (energy);
+                hits[timeIndex][frequencyIndex] += 1.0f;
+                highestTimestep = max(timeIndex, highestTimestep);
+            }
 		}
 	}
 
@@ -132,10 +131,10 @@ void SonelMapReceiver::addLaunchToEchogram() {
 	float brdf = 1.0f / (2.0f * 3.141592653589793238f);
 	for (unsigned int time = 0; time < min(config.timestepSize, highestTimestep); time++) {
 		for (unsigned int frequency = 0; frequency < config.frequencySize; frequency++) {
-			float hit = hits[time][frequency];
+            float hit = hits[time][frequency];
 
 			if (hit > 1.0f) {
-				echogram[time][frequency] += ((tempEchogram[time][frequency]) / sonelArea) * brdf;
+				echogram[time][frequency] += (tempEchogram[time][frequency]) / sonelArea * brdf;
 			}
 		}
 	}
@@ -272,6 +271,8 @@ void SonelMapReceiver::addSoundSourceHitRecords(std::vector<SmRecord<SmSbtData>>
 			rec.data.soundSource = reinterpret_cast<SimpleSoundSource*>(optixScene.getSoundSourceDevicePointer(sourceId));
 			rec.data.sonel = nullptr;
 			hitRecords.push_back(rec);
+
+            printf("[SonelMapReceiver] Added SoundSource %d\n", sourceId);
 		}
 	}
 }

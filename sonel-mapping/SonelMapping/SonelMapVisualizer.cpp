@@ -7,11 +7,16 @@ extern "C" char embedded_visualizer_code[];
 	optix, creates module, pipeline, programs, SBT, etc. */
 SonelMapVisualizer::SonelMapVisualizer(
 	const OptixSetup& optixSetup,
-	OptixScene& cudaScene
+	OptixScene& cudaScene,
+    float timestep,
+    float sonelRadius
 ): SmOptixProgram<SonelVisualizerParams, EmptyRecord, EmptyRecord, SmSbtData>(embedded_visualizer_code, optixSetup, cudaScene, 1, 1, 1), sonelArray(nullptr) {
 	maxTraversableGraphDepth = 3;
 	hitIsEnabled = true;
 	hitAhEnabled = true;
+    launchParams.timeIndex = 0;
+    launchParams.timestep = timestep;
+    launchParams.sonelRadius = sonelRadius;
 }
 
 void SonelMapVisualizer::setSonelArray(std::vector<Sonel>* newSonelArray) {
@@ -95,7 +100,6 @@ void SonelMapVisualizer::execute() {
 	}
 
 	launchParams.timeIndex = timestep;
-	timestep++;
 	launchParams.traversable = optixScene.getInstanceHandle();
 
 	auto start = std::chrono::high_resolution_clock::now();
@@ -173,6 +177,8 @@ void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<SmSbtData>> &hitReco
 
 			optixScene.fill(meshId, rec.data);
 			rec.data.sonel = nullptr;
+            rec.data.soundSource = nullptr;
+            rec.data.type = GEOMETRY;
 			hitRecords.push_back(rec);
 		}
 	}
@@ -191,7 +197,50 @@ void SonelMapVisualizer::addHitRecords(std::vector<SmRecord<SmSbtData>> &hitReco
 			);
 
 			rec.data.sonel = (Sonel*) optixScene.getSonelDevicePointer(sonelId);
+            rec.data.soundSource = nullptr;
+            rec.data.type = SONEL;
 			hitRecords.push_back(rec);
 		}
 	}
+
+    for (uint32_t soundSourceId = 0; soundSourceId < static_cast<uint32_t>(optixScene.getSoundSourceSize()); soundSourceId++) {
+        for (uint32_t programIndex = 0; programIndex < hitgroupProgramSize; programIndex++) {
+            SmRecord<SmSbtData> rec;
+
+            optixCheck(
+                    optixSbtRecordPackHeader(
+                            hitgroupPgs[programIndex],
+                            &rec
+                    ),
+                    "SonelMapVisualizer",
+                    "Failed to create SBT Record Header"
+            );
+
+            rec.data.sonel = nullptr;
+            rec.data.soundSource = reinterpret_cast<SimpleSoundSource*>(optixScene.getSoundSourceDevicePointer(soundSourceId));
+            rec.data.type = SOUND_SOURCE;
+            hitRecords.push_back(rec);
+        }
+    }
+}
+
+void SonelMapVisualizer::nextFrame() {
+    if (sonelArray == nullptr) {
+        return;
+    }
+
+    timestep++;
+    if (timestep == sonelArray->size()) {
+        timestep = 0;
+    }
+}
+
+void SonelMapVisualizer::previousFrame() {
+    if (sonelArray == nullptr) {
+        return;
+    }
+    timestep--;
+    if (timestep < 0) {
+        timestep = sonelArray->size() - 1;
+    }
 }

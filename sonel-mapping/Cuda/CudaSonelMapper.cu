@@ -92,7 +92,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 	Sonel& sonel = prd.sonels[sonelIndex];
 	float bounceProbability = prd.random.randomF();
 	if (bounceProbability > (DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD) ||
-        prd.depth + 1 == prd.maxDepth) {
+        prd.dataDepth + 1 == prd.maxDepth) {
         // printf("Ended ray at %d bounces, max depth %d\n", prd.depth, prd.maxDepth);
 		// Absorbed
 		sonel.time = 0;
@@ -101,10 +101,12 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 		return;
 	}
 
-	gdt::vec3f newRayDirection;
-	prd.distance += (length(surfPos - rayOrigin)) * SCALE;
-
+    float bounceLength = length(surfPos - rayOrigin) * SCALE;
+	prd.distance += bounceLength;
 	prd.depth += 1;
+
+
+    gdt::vec3f newRayDirection;
 	if (bounceProbability < DIFFUSE_BOUNCE_PROB) {
 		prd.dataDepth += 1;
         sonel.frequency = params.sonelMapData->frequencies[params.globalFrequencyIndex];
@@ -120,7 +122,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
         // printf("[Diff] Normal (%f, %f, %f), New Ray(%f, %f, %f)\n", shadingNormal.x, shadingNormal.y, shadingNormal.z, newRayDirection.x, newRayDirection.y, newRayDirection.z);
 	}
 	else {
-		newRayDirection = (2 * dot(shadingNormal, rayDir) * shadingNormal) - rayDir;
+		newRayDirection = (2 * dot(shadingNormal, -rayDir) * shadingNormal) + rayDir;
         // printf("[Spec] Normal (%f, %f, %f), New Ray(%f, %f, %f)\n", shadingNormal.x, shadingNormal.y, shadingNormal.z, newRayDirection.x, newRayDirection.y, newRayDirection.z);
 	}
 

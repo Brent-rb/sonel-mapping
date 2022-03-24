@@ -68,9 +68,19 @@ add_executable(sonel-mapping
         SonelMapping/SonelMapVisualizer.h
         SonelMapping/SonelMapVisualizer.cpp
 
-  main.cpp
-
-        Cuda/CudaVector.h SonelMapping/SonelVisibilityFlags.h SonelMapping/SmOptixProgram.h SonelMapping/SonelMapper.cpp SonelMapping/SonelMapper.h SonelMapping/Models/SonelReceiverParams.h SonelMapping/SonelMapReceiver.cpp SonelMapping/SonelMapReceiver.h SonelMapping/Models/AabbItem.h SonelMapping/Models/SimpelSoundSource.h Cuda/CudaSonelReceiverHelper.h Cuda/CudaSceneSettings.h)
+        SonelMapping/SonelVisibilityFlags.h
+        SonelMapping/SmOptixProgram.h
+        SonelMapping/SonelMapper.cpp
+        SonelMapping/SonelMapper.h
+        SonelMapping/Models/SonelReceiverParams.h
+        SonelMapping/SonelMapReceiver.cpp
+        SonelMapping/SonelMapReceiver.h
+        SonelMapping/Models/AabbItem.h
+        SonelMapping/Models/SimpelSoundSource.h
+        Cuda/CudaSonelReceiverHelper.h
+        Cuda/CudaSceneSettings.h
+        main.cpp
+      )
 
 target_link_libraries(
 sonel-mapping

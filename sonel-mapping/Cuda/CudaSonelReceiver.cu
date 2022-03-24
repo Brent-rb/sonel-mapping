@@ -22,6 +22,7 @@
 #include "CudaRandom.h"
 #include "CudaSonelReceiverHelper.h"
 #include "CudaSceneSettings.h"
+#include "CudaDeviceHelper.h"
 
 #include "../SonelMapping/SonelVisibilityFlags.h"
 #include "../SonelMapping/Models/SonelReceiverParams.h"
@@ -37,66 +38,11 @@ using namespace gdt;
 extern "C" __constant__ SonelReceiverParams params;
 
 
-inline __device__ float getSoundSourceHitT(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
-	float radius = params.soundSourceRadius;
-	gdt::vec3f center = soundSource.position;
-	gdt::vec3f oc = rayOrigin - center;
-
-	float a = dot(rayDirection, rayDirection);
-	float b = 2.0 * dot(oc, rayDirection);
-	float c = dot(oc, oc) - radius * radius;
-	float discriminant = b * b - 4 * a * c;
-
-	if(discriminant < 0){
-		return -1.0;
-	}
-	else {
-		return (-b - sqrt(discriminant)) / (2.0 * a);
-	}
-}
-
-inline __device__ gdt::vec3f getSoundSourceHit(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
-	float t = getSoundSourceHitT(soundSource, rayOrigin, rayDirection);
-	gdt::vec3f hitPosition = gdt::vec3f();
-
-	if (t > 0.0f) {
-		hitPosition = rayOrigin + (t * rayDirection);
-	}
-
-	return hitPosition;
-};
-
-inline __device__ void getSurfaceData(const SmSbtData& sbtData, gdt::vec3f& hitPosition, gdt::vec3f& geometryNormal, gdt::vec3f& shadingNormal) {
-	// ------------------------------------------------------------------
-	// gather some basic hit information
-	// ------------------------------------------------------------------
-	const int   primitiveIndex = optixGetPrimitiveIndex();
-
-	const vec3i index = sbtData.index[primitiveIndex];
-	const float u = optixGetTriangleBarycentrics().x;
-	const float v = optixGetTriangleBarycentrics().y;
-
-	// ------------------------------------------------------------------
-	// compute shadow
-	// ------------------------------------------------------------------
-	hitPosition = (1.f - u - v) * sbtData.vertex[index.x]
-	                      + u * sbtData.vertex[index.y]
-	                      + v * sbtData.vertex[index.z];
-
-	const gdt::vec3f& A = sbtData.vertex[index.x];
-	const gdt::vec3f& B = sbtData.vertex[index.y];
-	const gdt::vec3f& C = sbtData.vertex[index.z];
-	geometryNormal = gdt::cross(B - A, C - A);
-	shadingNormal = (sbtData.normal)
-	                ? ((1.f - u - v) * sbtData.normal[index.x]
-	                   + u * sbtData.normal[index.y]
-	                   + v * sbtData.normal[index.z])
-	                : geometryNormal;
-}
-
 /*! per-ray data now captures random number generator, so programs
 	can access RNG state */
 struct PerRayData {
+    unsigned int index = 0;
+
 	CudaRandom random;
 
 	float data[(MAX_FREQUENCIES * MAX_SONELS * DATA_SIZE)];
@@ -114,17 +60,18 @@ struct PerRayData {
 		// const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
         const float absorption[] = { 0.0206, 0.0206, 0.0206, 0.0206 };
         const unsigned int dataIndex = getDataIndex(soundSource.frequencyIndex);
-		if ((dataIndices[soundSource.frequencyIndex] + 1) >= MAX_SONELS) {
+		if ((dataIndices[soundSource.frequencyIndex]) >= MAX_SONELS) {
 			return;
 		}
 
-		gdt::vec3f soundSourceHit = getSoundSourceHitT(soundSource, rayOrigin, rayDirection);
+		gdt::vec3f soundSourceHit = getSoundSourceHitT(soundSource, params.soundSourceRadius, rayOrigin, rayDirection);
 		float soundSourceDistance = gdt::length(soundSourceHit - rayOrigin) * SCALE;
 		float energy = (powf(10.0f, soundSource.decibel / 10.0f) / params.rayAmount);
 		float scaledEnergy = energy * exp(-absorption[soundSource.frequencyIndex] * soundSourceDistance);
 
 		data[dataIndex + DATA_TIME_OFFSET] = (soundSourceDistance / params.timestep) + soundSource.timestamp;
 		data[dataIndex + DATA_ENERGY_OFFSET] = scaledEnergy;
+        data[ARRAY_HEADER_HITS_OFFSET] += 1.0f;
 		dataIndices[soundSource.frequencyIndex]++;
 	}
 
@@ -132,7 +79,7 @@ struct PerRayData {
 		// const float absorption[] = { 0.0012f, 0.0023f, 0.0067f, 0.0206f };
 		const float absorption[] = { 0.0206, 0.0206, 0.0206, 0.0206 };
         const unsigned int dataIndex = getDataIndex(sonel.frequencyIndex);
-		if ((dataIndices[sonel.frequencyIndex] + 1) >= MAX_SONELS) {
+		if ((dataIndices[sonel.frequencyIndex]) >= MAX_SONELS) {
 			return;
 		}
 
@@ -145,6 +92,7 @@ struct PerRayData {
 
 		data[dataIndex + DATA_TIME_OFFSET] = totalTime;
 		data[dataIndex + DATA_ENERGY_OFFSET] = scaledEnergy;
+        data[ARRAY_HEADER_HITS_OFFSET] += 1.0f;
 		dataIndices[sonel.frequencyIndex]++;
 	}
 };
@@ -168,7 +116,8 @@ extern "C" __global__ void __closesthit__radiance() {
 	gdt::vec3f hitPosition, geometryNormal, shadingNormal;
 	getSurfaceData(sbtData, hitPosition, geometryNormal, shadingNormal);
 
-	prd.distance = (gdt::length(rayOrigin - hitPosition) * SCALE);
+    float bounceLength = (gdt::length(rayOrigin - hitPosition) * SCALE);
+	prd.distance += bounceLength;
 	float duration = prd.distance / params.soundSpeed;
 	prd.time += duration;
 
@@ -254,24 +203,10 @@ extern "C" __global__ void __intersection__radiance() {
 	else if (type == SOUND_SOURCE) {
         printf("SoundSource intersection");
 		const SimpleSoundSource& soundSource = *(sbtData->soundSource);
+        float t = getSoundSourceHitT(soundSource, params.soundSourceRadius, rayOrigin, rayDirection);
 
-		gdt::vec3f center = soundSource.position;
-		float radius = params.soundSourceRadius;
-
-		gdt::vec3f oc = rayOrigin - center;
-		float a = dot(rayDirection, rayDirection);
-		float b = 2.0 * dot(oc, rayDirection);
-		float c = dot(oc,oc) - radius * radius;
-		float discriminant = b * b - 4 * a * c;
-
-		if(discriminant < 0){
-			intersectionT = -1.0;
-		}
-		else{
-            printf("Sound source any hit\n");
-			intersectionT = (-b - sqrt(discriminant)) / (2.0 * a);
-            hit = true;
-		}
+        hit = t > -0.99f;
+        intersectionT = t;
 	}
 
 	if (hit) {
@@ -306,8 +241,9 @@ extern "C" __global__ void __raygen__renderFrame() {
 	memset(prd.data, 0, sizeof(float) * getDataArraySize());
 	memset(prd.dataIndices, 0, sizeof(unsigned int) * MAX_FREQUENCIES);
 
+    prd.index = rayIndex;
 	prd.random.init(rayIndex, 0, 0);
-	prd.time = params.timeOffset;
+	prd.time = 0.0f;
 
 	// the values we store the PRD pointer in:
 	uint32_t u0, u1;
