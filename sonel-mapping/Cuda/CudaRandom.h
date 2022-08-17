@@ -25,9 +25,17 @@ public:
 		return curand_uniform(&curandState);
 	}
 
+    __device__ __host__ float normalF() {
+        return curand_normal(&curandState);
+    }
+
 	__device__ __host__ float randomF(float min, float max) {
 		return (randomF() * (max - min)) + min;
 	}
+
+    __device__ __host__ float normalF(float min, float max) {
+        return (normalF() * (max - min)) + min;
+    }
 
 	__device__ __host__ void randomVec3fHemi(gdt::vec3f& direction, gdt::vec3f& randomVector) {
 		randomVec3fSphere(randomVector);
@@ -45,17 +53,13 @@ public:
 	}
 
 	__device__ __host__ void randomVec3fSphere(gdt::vec3f& randomVector) {
-		float theta = randomF(0.0f, 2 * E_PI);
-		float alpha = randomF(0.0f, 2 * E_PI);
+        do {
+            randomVector.x = normalF(-1.0f, 1.0f);
+            randomVector.y = normalF(-1.0f, 1.0f);
+            randomVector.z = normalF(-1.0f, 1.0f);
+        } while (gdt::length(randomVector) < 0.001f);
 
-        float cosTheta = cosf(theta);
-        float sinTheta = sinf(theta);
-        float cosAlpha = cosf(alpha);
-        float sinAlpha = sinf(alpha);
-
-		randomVector.x = cosTheta * cosAlpha;
-		randomVector.z = sinTheta * cosAlpha;
-		randomVector.y = sinAlpha;
+        randomVector = gdt::normalize(randomVector);
 	}
 
 	__device__ __host__ gdt::vec3f randomVec3fSphere() {

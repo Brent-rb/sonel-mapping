@@ -134,13 +134,13 @@ extern "C" __global__ void __closesthit__radiance() {
 	if (decisionProbability < DIFFUSE_BOUNCE_PROB) {
 		// printf("Diffuse Hit\n");
 		newRayMask = SONELS_VISIBLE;
-		newRayMin = 0.01f;
-		newRayMax = 1.0f;
-		newRayDir = -rayDirection;
+		newRayMin = 0.001f;
+		newRayMax = 0.01f;
+		newRayDir = shadingNormal;
 	}
 	else {
 		// printf("Specular Hit\n");
-		newRayMask = GEOMETRY_VISIBLE;
+		newRayMask = GEOMETRY_VISIBLE + SOUND_SOURCES_VISIBLE;
 		newRayFlags = OPTIX_RAY_FLAG_DISABLE_ANYHIT;
 		prd.random.randomVec3fHemi(shadingNormal, newRayDir);
 	}
@@ -196,7 +196,7 @@ extern "C" __global__ void __intersection__radiance() {
 		gdt::vec3f center = sonel.position;
 		float length = gdt::length(center - rayOrigin);
 		if (length < params.sonelRadius) {
-			intersectionT = 0.11f;
+			intersectionT = 0.011f;
             hit = true;
 		}
 	}
