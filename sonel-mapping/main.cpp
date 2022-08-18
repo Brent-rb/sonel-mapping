@@ -80,9 +80,10 @@ Scene loadBox() {
         /* up */vec3f(0.f,1.f,0.f)
     };
 
-    SoundFrequency frequency(8000, 5000, 128, 0.0206);
+    SoundFrequency frequency(8000, 5000, 32, 0.0206);
     std::vector<float> decibels;
     decibels.push_back(90.14f);
+	decibels.push_back(80.14f);
 
     frequency.setDecibels(decibels);
     std::vector<SoundFrequency> frequencies;

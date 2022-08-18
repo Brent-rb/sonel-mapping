@@ -23,6 +23,7 @@ void SonelMapper::initialize(SonelMapperConfig config) {
 	launchParams.localFrequencyIndex = 0;
 	launchParams.sonelMapData = sonelMapDevicePtr;
 	launchParams.traversable = optixScene.getGeometryHandle();
+	launchParams.frameIndex = 0;
 
 	init();
 }
@@ -45,7 +46,7 @@ void SonelMapper::execute() {
 
 			downloadSonelDataForFrequency(fIndex, sourceIndex);
 			sonelMap.cudaDestroy(sonelMapDevicePtr, sourceIndex, fIndex);
-
+			launchParams.frameIndex += frequency.sonelAmount * frequency.sonelMaxDepth * frequency.decibelSize;
 		}
 	}
 }
@@ -101,22 +102,25 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 	sonelMap.cudaDownload(sonelMapDevicePtr, sourceIndex, fIndex);
 	Sonel* sonels = frequency.sonels;
 
-	// Go over all rays
 	uint64_t sonelAmount = 0;
-	for (uint32_t i = 0; i < frequency.sonelAmount; i++) {
-		// Go over each bounce in the ray
-		for (uint32_t j = 0; j < frequency.sonelMaxDepth; j++) {
-			Sonel& sonel = sonels[i * frequency.sonelMaxDepth + j];
-			sonel.frequency = frequency.frequency;
+	const uint64_t decibelStride = frequency.sonelAmount * frequency.sonelMaxDepth;
+	for(uint32_t decibelIndex = 0; decibelIndex < frequency.decibelSize; decibelIndex++) {
+		for(uint32_t sonelIndex = 0; sonelIndex < frequency.sonelAmount; sonelIndex++) {
+			// Go over each bounce in the ray
+			for(uint32_t depth = 0; depth < frequency.sonelMaxDepth; depth++) {
+				uint64_t index = decibelIndex * decibelStride + sonelIndex * frequency.sonelMaxDepth + depth;
+				Sonel& sonel = sonels[index];
+				sonel.frequency = frequency.frequency;
 
-			// The data of a sonel is 0 the ray is absorbed and done.
-			if (sonel.energy < 0.0000000000000001f) {
-				break;
-			}
+				// The data of a sonel is 0 the ray is absorbed and done.
+				if(sonel.frequency == 0) {
+					break;
+				}
 
-			if (sonel.time < maxTime) {
-				sonelAmount++;
-				sonelArray.push_back(sonel);
+				if(sonel.time < maxTime) {
+					sonelAmount++;
+					sonelArray.push_back(sonel);
+				}
 			}
 		}
 	}

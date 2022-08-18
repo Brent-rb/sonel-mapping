@@ -15,7 +15,7 @@ extern "C" __constant__ CudaSonelMapperParams params;
 class PerRayData {
 public:
 	__device__ __host__ PerRayData(const CudaRandom& random, const uint32_t index, const float energy):
-		random(random), index(index), dataDepth(0), depth(0), distance(0.0f) {
+		random(random), index(index), depth(0), distance(0.0f) {
 
 	}
 
@@ -25,7 +25,6 @@ public:
 	CudaRandom random;
 
 	uint32_t index;
-	uint32_t dataDepth;
 	uint32_t depth;
 	uint32_t maxDepth;
 
@@ -87,28 +86,22 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 		+ u * sbtData.vertex[index.y]
 		+ v * sbtData.vertex[index.z];
 
-	uint32_t sonelIndex = (prd.index * prd.maxDepth) + prd.dataDepth;
-
-	Sonel& sonel = prd.sonels[sonelIndex];
+	Sonel& sonel = prd.sonels[prd.index];
 	float bounceProbability = prd.random.randomF();
 	if (bounceProbability > (DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD) ||
-        prd.dataDepth + 1 == prd.maxDepth) {
+        prd.depth + 1 == prd.maxDepth) {
         // printf("Ended ray at %d bounces, max depth %d\n", prd.depth, prd.maxDepth);
 		// Absorbed
-		sonel.time = 0;
-		sonel.distance = 0;
-		sonel.energy = 0;
+		sonel.frequency = 0;
+
 		return;
 	}
 
     float bounceLength = length(surfPos - rayOrigin) * SCALE;
 	prd.distance += bounceLength;
-	prd.depth += 1;
-
 
     gdt::vec3f newRayDirection;
 	if (bounceProbability < DIFFUSE_BOUNCE_PROB) {
-		prd.dataDepth += 1;
         sonel.frequency = params.sonelMapData->frequencies[params.globalFrequencyIndex];
         sonel.frequencyIndex = params.globalFrequencyIndex;
 		sonel.energy = prd.energy;
@@ -117,6 +110,8 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 		sonel.time = (prd.distance / params.sonelMapData->soundSpeed) + prd.timeOffset;
 		// printf("Sonel Time %f\n", sonel.time);
 		sonel.incidence = rayDir;
+		prd.index += 1;
+		prd.depth += 1;
 
 		prd.random.randomVec3fHemi(shadingNormal, newRayDirection);
         // printf("[Diff] Normal (%f, %f, %f), New Ray(%f, %f, %f)\n", shadingNormal.x, shadingNormal.y, shadingNormal.z, newRayDirection.x, newRayDirection.y, newRayDirection.z);
@@ -159,14 +154,9 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 extern "C" __global__ void __miss__sonelRadiance() {
     // printf("Miss\n");
 	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+	Sonel& sonel = prd.sonels[prd.index];
 
-	uint32_t sonelIndex = (prd.index * prd.maxDepth) + prd.dataDepth;
-
-	Sonel& sonel = prd.sonels[sonelIndex];
-
-	sonel.time = 0;
-	sonel.distance = 0;
-	sonel.energy = 0;
+	sonel.frequency = 0;
 }
 
 //------------------------------------------------------------------------------
@@ -175,20 +165,22 @@ extern "C" __global__ void __miss__sonelRadiance() {
 extern "C" __global__ void __raygen__generateSonelMap() {
 	const int sonelIndex = optixGetLaunchIndex().x;
 	const int decibelIndex = optixGetLaunchIndex().y;
-	CudaRandom random = CudaRandom(sonelIndex, 0, 0);
 
 	SoundSource& soundSource = params.sonelMapData->soundSources[params.soundSourceIndex];
 	SoundFrequency& soundFrequency = soundSource.frequencies[params.localFrequencyIndex];
+	const uint32_t decibelPageStride = (soundFrequency.sonelMaxDepth * soundFrequency.sonelAmount);
+	const uint32_t rayIndex = decibelPageStride * decibelIndex + sonelIndex * soundFrequency.sonelMaxDepth;
+	CudaRandom random = CudaRandom(rayIndex + params.frameIndex, 0, 0);
 	
 	float& decibels = soundFrequency.decibels[decibelIndex];
 	if (decibels > -0.000001 && decibels < 0.000001) {
 		return;
 	}
 
-	float energy = (powf(10.0f, decibels / 10.0f) / (soundFrequency.sonelAmount * 1.0f));
+	float energy = powf(10.0f, decibels / 10.0f) / static_cast<float>(soundFrequency.sonelAmount);
 	// printf("Simulating with sonel energy: %f, %f, %d\n", energy, decibels, soundFrequency.sonelAmount);
 
-	PerRayData prd = PerRayData(random, sonelIndex, energy);
+	PerRayData prd = PerRayData(random, rayIndex, energy);
 	prd.maxDepth = soundFrequency.sonelMaxDepth;
 	prd.sonels = soundFrequency.sonels;
 	prd.distance = 0;

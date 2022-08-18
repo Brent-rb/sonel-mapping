@@ -48,6 +48,9 @@ public:
 		decibelSize = static_cast<uint32_t>(inputDecibels.size());
 		decibels = new float[decibelSize];
 		memcpy(decibels, inputDecibels.data(), decibelSize * sizeof(float));
+
+		sonelSize = decibelSize * sonelAmount * sonelMaxDepth;
+		printf("[SoundFrequency] Sonel buffer size: %d\n", sonelSize);
 	}
 
 	SoundFrequency* cudaCreate() {
@@ -73,6 +76,7 @@ public:
 
 		// Allocate sonels, no need to copy as we only want to download
 		Sonel* deviceSonels;
+		printf("[SoundFrequency] Sonel buffer size: %d\n", sonelSize);
 		cudaMalloc(&deviceSonels, sizeof(Sonel) * sonelSize);
 
 		// Copy the pointers over
@@ -124,7 +128,7 @@ public:
 
 class SoundSource {
 public:
-	SoundSource(): frequencySize(0), frequencies(nullptr) {
+	SoundSource(): frequencySize(0), frequencies(nullptr), radius(0.0f) {
 
 	}
 
