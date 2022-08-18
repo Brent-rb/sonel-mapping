@@ -64,4 +64,14 @@ inline __device__ void getSurfaceData(const SmSbtData& sbtData, gdt::vec3f& hitP
     shadingNormal = normalize(shadingNormal);
 }
 
+inline __device__ void fixNormals(const gdt::vec3f& rayDirection, gdt::vec3f& geometryNormal, gdt::vec3f& shadingNormal) {
+    if(dot(rayDirection, geometryNormal) > 0.f)
+        geometryNormal = -geometryNormal;
+    geometryNormal = normalize(geometryNormal);
+
+    if(dot(geometryNormal, shadingNormal) < 0.f)
+        shadingNormal -= 2.f * dot(geometryNormal, shadingNormal) * geometryNormal;
+    shadingNormal = normalize(shadingNormal);
+}
+
 #endif //SONEL_MAPPING_CUDADEVICEHELPER_H

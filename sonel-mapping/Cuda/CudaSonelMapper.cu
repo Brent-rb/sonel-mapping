@@ -3,6 +3,7 @@
 #include <curand_kernel.h>
 
 #include "CudaHelper.h"
+#include "CudaDeviceHelper.h"
 #include "CudaSonelMapperParams.h"
 #include "CudaRandom.h"
 #include "CudaSceneSettings.h"
@@ -39,73 +40,33 @@ extern "C" __global__ void __anyhit__sonelRadiance() {
 
 extern "C" __global__ void __closesthit__sonelRadiance() {
 	const SmSbtData& sbtData = *(const SmSbtData*)optixGetSbtDataPointer();
-	PerRayData& prd = *getPackedOptixObject<PerRayData>();
-
-	// ------------------------------------------------------------------
-	// gather some basic hit information
-	// ------------------------------------------------------------------
-	const int primitiveIndex = optixGetPrimitiveIndex();
-	const gdt::vec3i index = sbtData.index[primitiveIndex];
-	const float u = optixGetTriangleBarycentrics().x;
-	const float v = optixGetTriangleBarycentrics().y;
-
-	// ------------------------------------------------------------------
-	// compute normal, using either shading normal (if avail), or
-	// geometry normal (fallback)
-	// ------------------------------------------------------------------
-	const gdt::vec3f& A = sbtData.vertex[index.x];
-	const gdt::vec3f& B = sbtData.vertex[index.y];
-	const gdt::vec3f& C = sbtData.vertex[index.z];
-	gdt::vec3f geometryNormal = gdt::cross(B - A, C - A);
-	gdt::vec3f shadingNormal = (sbtData.normal)
-		? ((1.f - u - v) * sbtData.normal[index.x]
-			+ u * sbtData.normal[index.y]
-			+ v * sbtData.normal[index.z])
-		: geometryNormal;
-
-	// ------------------------------------------------------------------
-	// face-forward and normalize normals
-	// ------------------------------------------------------------------
 	const gdt::vec3f rayDir = optixGetWorldRayDirection();
 	const gdt::vec3f rayOrigin = optixGetWorldRayOrigin();
-
-	if (dot(rayDir, geometryNormal) > 0.f)
-        geometryNormal = -geometryNormal;
-    geometryNormal = normalize(geometryNormal);
-
-	if (dot(geometryNormal, shadingNormal) < 0.f)
-        shadingNormal -= 2.f * dot(geometryNormal, shadingNormal) * geometryNormal;
-    shadingNormal = normalize(shadingNormal);
-
-
-	// ------------------------------------------------------------------
-	// compute shadow
-	// ------------------------------------------------------------------
-	const gdt::vec3f surfPos
-		= (1.f - u - v) * sbtData.vertex[index.x]
-		+ u * sbtData.vertex[index.y]
-		+ v * sbtData.vertex[index.z];
+	PerRayData& prd = *getPackedOptixObject<PerRayData>();
+	
+	gdt::vec3f hitPosition, geometryNormal, shadingNormal;
+	getSurfaceData(sbtData, hitPosition, geometryNormal, shadingNormal);
+	fixNormals(rayDir, geometryNormal, shadingNormal);
 
 	Sonel& sonel = prd.sonels[prd.index];
-	float bounceProbability = prd.random.randomF();
-	if (bounceProbability > (DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD) ||
-        prd.depth + 1 == prd.maxDepth) {
+	CudaBounceType bounceType = prd.random.getBounceType(DIFFUSE_BOUNCE_PROB, SPECULAR_BOUNCE_PROB);
+
+	if (bounceType == CudaBounceType::Absorbed || prd.depth + 1 == prd.maxDepth) {
         // printf("Ended ray at %d bounces, max depth %d\n", prd.depth, prd.maxDepth);
 		// Absorbed
 		sonel.frequency = 0;
-
 		return;
 	}
 
-    float bounceLength = length(surfPos - rayOrigin) * SCALE;
+    float bounceLength = length(hitPosition - rayOrigin) * SCALE;
 	prd.distance += bounceLength;
 
     gdt::vec3f newRayDirection;
-	if (bounceProbability < DIFFUSE_BOUNCE_PROB) {
+	if (bounceType == CudaBounceType::Diffuse) {
         sonel.frequency = params.sonelMapData->frequencies[params.globalFrequencyIndex];
         sonel.frequencyIndex = params.globalFrequencyIndex;
 		sonel.energy = prd.energy;
-		sonel.position = surfPos;
+		sonel.position = hitPosition;
 		sonel.distance = prd.distance;
 		sonel.time = (prd.distance / params.sonelMapData->soundSpeed) + prd.timeOffset;
 		// printf("Sonel Time %f\n", sonel.time);
@@ -129,7 +90,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 
 	optixTrace(
 		params.traversable,
-		surfPos,
+		hitPosition,
 		newRayDirection,
 		1e-3f, // tmin
 		1e20f, // tmax

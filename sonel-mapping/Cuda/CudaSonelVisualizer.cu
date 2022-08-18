@@ -89,19 +89,15 @@ extern "C" __global__ void __closesthit__radiance() {
 	// available
 	// ------------------------------------------------------------------
 	vec3f diffuseColor = sbtData.color;
-	if (sbtData.hasTexture && sbtData.texcoord) {
+	if(sbtData.hasTexture && sbtData.texcoord) {
 		const vec2f tc
 			= (1.f - u - v) * sbtData.texcoord[index.x]
 			+ u * sbtData.texcoord[index.y]
 			+ v * sbtData.texcoord[index.z];
 
 		vec4f fromTexture = tex2D<float4>(sbtData.texture, tc.x, tc.y);
-		diffuseColor *= (vec3f)fromTexture;
+		diffuseColor *= (vec3f) fromTexture;
 	}
-
-	// start with some ambient term
-	vec3f pixelColor = diffuseColor;
-
 
     uint32_t u0, u1;
     packPointer(&prd, u0, u1);

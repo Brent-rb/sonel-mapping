@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include "gdt/math/vec.h"
+#include "CudaBounceType.h"
 
 #define E_PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062f
 
@@ -63,6 +64,20 @@ public:
 		randomVec3fSphere(randomVector);
 
 		return randomVector;
+	}
+
+	__device__ __host__ CudaBounceType getBounceType(const float& diffuseProb, const float& specularProb) {
+		float randomValue = randomF();
+
+		if(randomValue <= diffuseProb) {
+			return CudaBounceType::Diffuse;
+		}
+		else if(randomValue <= diffuseProb + specularProb) {
+			return CudaBounceType::Specular;
+		}
+		else {
+			return CudaBounceType::Absorbed;
+		}
 	}
 
 protected:

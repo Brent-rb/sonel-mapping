@@ -130,7 +130,7 @@ extern "C" __global__ void __closesthit__radiance() {
 	unsigned int newRayMask;
 	unsigned int newRayFlags = OPTIX_RAY_FLAG_NONE;
 
-	float decisionProbability = prd.random.randomF(0.0f, DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROD);
+	float decisionProbability = prd.random.randomF(0.0f, DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROB);
 	if (decisionProbability < DIFFUSE_BOUNCE_PROB) {
 		// printf("Diffuse Hit\n");
 		newRayMask = SONELS_VISIBLE;

@@ -80,7 +80,7 @@ add_executable(sonel-mapping
         Cuda/CudaSonelReceiverHelper.h
         Cuda/CudaSceneSettings.h
         main.cpp
-      )
+       "Cuda/CudaBounceType.h")
 
 target_link_libraries(
 sonel-mapping
