@@ -33,11 +33,6 @@ public:
 		return (randomF() * (max - min)) + min;
 	}
 
-	__device__ __host__ float normalF(float min, float max) {
-		return (normalF() * (max - min)) + min;
-	}
-
-
 	__device__ __host__ void randomVec3fHemi(gdt::vec3f& direction, gdt::vec3f& randomVector) {
 		randomVec3fSphere(randomVector);
 
@@ -55,10 +50,10 @@ public:
 
 	__device__ __host__ void randomVec3fSphere(gdt::vec3f& randomVector) {
 		do {
-			randomVector.x = normalF(-1.0f, 1.0f);
-			randomVector.y = normalF(-1.0f, 1.0f);
-			randomVector.z = normalF(-1.0f, 1.0f);
-		} while(gdt::length(randomVector) < 0.001f);
+			randomVector.x = normalF();
+			randomVector.y = normalF();
+			randomVector.z = normalF();
+		} while(gdt::length(randomVector) < 0.0001f);
 
 		randomVector = gdt::normalize(randomVector);
 	}

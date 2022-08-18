@@ -110,7 +110,6 @@ void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t source
 			for(uint32_t depth = 0; depth < frequency.sonelMaxDepth; depth++) {
 				uint64_t index = decibelIndex * decibelStride + sonelIndex * frequency.sonelMaxDepth + depth;
 				Sonel& sonel = sonels[index];
-				sonel.frequency = frequency.frequency;
 
 				// The data of a sonel is 0 the ray is absorbed and done.
 				if(sonel.frequency == 0) {
