@@ -115,6 +115,7 @@ extern "C" __global__ void __closesthit__radiance() {
 
 	gdt::vec3f hitPosition, geometryNormal, shadingNormal;
 	getSurfaceData(sbtData, hitPosition, geometryNormal, shadingNormal);
+	fixNormals(rayDirection, geometryNormal, shadingNormal);
 
     float bounceLength = (gdt::length(rayOrigin - hitPosition) * SCALE);
 	prd.distance += bounceLength;
@@ -130,19 +131,22 @@ extern "C" __global__ void __closesthit__radiance() {
 	unsigned int newRayMask;
 	unsigned int newRayFlags = OPTIX_RAY_FLAG_NONE;
 
-	float decisionProbability = prd.random.randomF(0.0f, DIFFUSE_BOUNCE_PROB + SPECULAR_BOUNCE_PROB);
-	if (decisionProbability < DIFFUSE_BOUNCE_PROB) {
+	CudaBounceType bounceType = prd.random.getBounceType(DIFFUSE_BOUNCE_PROB, SPECULAR_BOUNCE_PROB);
+	if (bounceType == CudaBounceType::Diffuse) {
 		// printf("Diffuse Hit\n");
 		newRayMask = SONELS_VISIBLE;
 		newRayMin = 0.01f;
 		newRayMax = 1.0f;
 		newRayDir = -rayDirection;
 	}
-	else {
+	else if (bounceType == CudaBounceType::Specular) {
 		// printf("Specular Hit\n");
-		newRayMask = GEOMETRY_VISIBLE;
+		newRayMask = GEOMETRY_VISIBLE + SOUND_SOURCES_VISIBLE;
 		newRayFlags = OPTIX_RAY_FLAG_DISABLE_ANYHIT;
 		prd.random.randomVec3fHemi(shadingNormal, newRayDir);
+	}
+	else {
+		return;
 	}
 
     prd.bounce++;
@@ -201,7 +205,6 @@ extern "C" __global__ void __intersection__radiance() {
 		}
 	}
 	else if (type == SOUND_SOURCE) {
-        printf("SoundSource intersection");
 		const SimpleSoundSource& soundSource = *(sbtData->soundSource);
         float t = getSoundSourceHitT(soundSource, soundSource.radius, rayOrigin, rayDirection);
 
