@@ -203,7 +203,7 @@ extern "C" __global__ void __intersection__radiance() {
 	else if (type == SOUND_SOURCE) {
         printf("SoundSource intersection");
 		const SimpleSoundSource& soundSource = *(sbtData->soundSource);
-        float t = getSoundSourceHitT(soundSource, params.soundSourceRadius, rayOrigin, rayDirection);
+        float t = getSoundSourceHitT(soundSource, soundSource.radius, rayOrigin, rayDirection);
 
         hit = t > -0.99f;
         intersectionT = t;

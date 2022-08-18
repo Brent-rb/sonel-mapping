@@ -122,7 +122,7 @@ public:
 
 
 
-class SoundSource: public AabbItem {
+class SoundSource {
 public:
 	SoundSource(): frequencySize(0), frequencies(nullptr) {
 
@@ -134,10 +134,6 @@ public:
 			frequencySize = 0;
 			frequencies = nullptr;
 		}
-	}
-
-	gdt::vec3f getPosition() const override {
-		return position;
 	}
 
 	void setFrequencies(const std::vector<SoundFrequency>& data) {
@@ -201,6 +197,7 @@ public:
 public:
 	gdt::vec3f position;
 	gdt::vec3f direction;
+	float radius;
 
 	uint16_t frequencySize;
 	SoundFrequency* frequencies;

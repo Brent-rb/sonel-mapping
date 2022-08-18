@@ -21,6 +21,10 @@ public:
 		return position;
 	}
 
+	float getRadius() const override {
+		return 0.15f;
+	}
+
 public:
 	gdt::vec3f position;
 	gdt::vec3f incidence;

@@ -49,18 +49,24 @@ public:
 					simpleSource.timestampIndex = decibelIndex;
 					simpleSource.timestamp = static_cast<float>(decibelIndex) * sonelMap.timestep;
 					simpleSource.decibel = decibel;
+					simpleSource.radius = soundSource.radius;
 
 					simpleSources.push_back(simpleSource);
 				}
 			}
 		}
 
+		std::cout << "Constructed " << simpleSources.size() << " simple sound sources." << std::endl;
+
 		return simpleSources;
 	}
 
-private:
 	gdt::vec3f getPosition() const override {
 		return position;
+	}
+
+	float getRadius() const override {
+		return radius;
 	}
 
 public:
@@ -75,6 +81,7 @@ public:
 
 	float decibel = 0.0f;
 	float absorption = 0.0f;
+	float radius = 0.5f;
 };
 
 #endif //SONEL_MAPPING_SIMPELSOUNDSOURCE_H

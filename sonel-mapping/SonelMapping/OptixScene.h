@@ -27,7 +27,7 @@ public:
 	void setSonels(std::vector<Sonel>* newSonels, float searchRadius);
 	std::vector<Sonel>* getSonels() const;
 
-	void setSoundSources(std::vector<SimpleSoundSource>* newSoundSources, float searchRadius);
+	void setSoundSources(std::vector<SimpleSoundSource>* newSoundSources);
 	std::vector<SimpleSoundSource>* getSoundSources() const;
 
 	CUdeviceptr getSonelDevicePointer(uint32_t sonelIndex) const;
@@ -67,8 +67,7 @@ protected:
 	template<class T>
 	static void buildAabb(
 			const std::vector<T>* aabbItems, CudaBuffer& itemBuffer, CudaBuffer& aabbBuffer,
-			std::vector<CUdeviceptr>& cudaPointers, std::vector<OptixBuildInput>& optixInputs, std::vector<uint32_t>& optixInputFlags,
-			float searchRadius
+			std::vector<CUdeviceptr>& cudaPointers, std::vector<OptixBuildInput>& optixInputs, std::vector<uint32_t>& optixInputFlags
 	) {
 		const auto aabbItemSize = static_cast<uint32_t>(aabbItems->size());
 		if (aabbItemSize == 0) {
@@ -86,10 +85,16 @@ protected:
 			// upload the model to the device: the builder
 			const T& item = (*aabbItems)[itemId];
 			const AabbItem& aabbItem = (*aabbItems)[itemId];
-
+			const float radius = aabbItem.getRadius();
 			gdt::vec3f position = aabbItem.getPosition();
-			gdt::vec3f min = position - searchRadius;
-			gdt::vec3f max = position + searchRadius;
+
+			if(radius > 1.0f) {
+				printf("Constructing AABB with radius %f\n", radius);
+				printf("Position %f, %f, %f\n", position.x, position.y, position.z);
+			}
+
+			gdt::vec3f min = position - aabbItem.getRadius();
+			gdt::vec3f max = position + aabbItem.getRadius();
 			tempAabbs[itemId] = {
 					min.x,
 					min.y,
@@ -163,7 +168,6 @@ protected:
 
 	CudaBuffer soundSourceAabbBuffer;
 	CudaBuffer soundSourceBuffer;
-	float soundSourceRadius = 0.5f;
 
 	// Build data
 	std::vector<OptixBuildInput> geometryInputs;

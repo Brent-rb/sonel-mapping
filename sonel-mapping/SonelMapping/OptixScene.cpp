@@ -129,12 +129,11 @@ std::vector<Sonel>* OptixScene::getSonels() const {
 	return sonels;
 }
 
-void OptixScene::setSoundSources(std::vector<SimpleSoundSource> *newSoundSources, float searchRadius) {
+void OptixScene::setSoundSources(std::vector<SimpleSoundSource> *newSoundSources) {
 	printf("[OptixScene] Setting sound sources, size: %llu\n", newSoundSources->size());
 
 	soundSources = newSoundSources;
 	soundSourceSize = static_cast<uint32_t>(newSoundSources->size());
-	soundSourceRadius = searchRadius;
 
 	soundSourceBuffersInvalid = true;
 }
@@ -346,14 +345,12 @@ void OptixScene::buildGeometryTextures() {
 
 void OptixScene::buildSonelInputs() {
 	buildAabb(sonels, sonelBuffer, sonelAabbBuffer,
-			  cudaSonelInputs, sonelInputs, sonelInputFlags,
-			  sonelRadius);
+			  cudaSonelInputs, sonelInputs, sonelInputFlags);
 }
 
 void OptixScene::buildSoundSourceInputs() {
 	buildAabb(soundSources, soundSourceBuffer, soundSourceAabbBuffer,
-			  cudaSoundSourceInputs, soundSourceInputs, soundSourceInputFlags,
-			  soundSourceRadius);
+			  cudaSoundSourceInputs, soundSourceInputs, soundSourceInputFlags);
 }
 
 void OptixScene::buildGeometryAccelStructure() {

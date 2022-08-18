@@ -70,7 +70,7 @@ extern "C" int main(int argC, char** argV) {
 }
 
 Scene loadBox() {
-    Model* model = loadObj("../../models/box4x4.obj");
+    Model* model = loadObj("../../../models/box4x4.obj");
     gdt::vec3f modelCenter = model->bounds.center();
 
     printf("Center %f, %f, %f\n", modelCenter.x, modelCenter.y, modelCenter.z);
@@ -92,6 +92,7 @@ Scene loadBox() {
 
     source.direction = normalize(vec3f(0.0f, 0.0f, 0.0f));
     source.position = vec3f(3.5, 3.5, -3.5);
+	source.radius = 0.5f;
     source.setFrequencies(frequencies);
 
     std::vector<SoundSource> sources;
@@ -109,7 +110,7 @@ Scene loadBox() {
 }
 
 Scene loadSponza() {
-	Model* model = loadObj("../../models/sponza.obj");
+	Model* model = loadObj("../../../models/sponza.obj");
 
 	Camera camera = {
 		/*from*/vec3f(0, 150, model->bounds.center().z),
@@ -121,10 +122,10 @@ Scene loadSponza() {
 	std::vector<SoundFrequency> frequencies1;
 	std::vector<SoundFrequency> frequencies2;
 
-	SoundFrequency frequency1(1000, 50000, 64, 0.0012);
-	SoundFrequency frequency2(2000, 100000, 64, 0.0023);
-	SoundFrequency frequency3(4000, 200000, 64, 0.0067);
-	SoundFrequency frequency4(8000, 400000, 64, 0.0206);
+	SoundFrequency frequency1(1000, 5000, 32, 0.0012);
+	SoundFrequency frequency2(2000, 10000, 32, 0.0023);
+	SoundFrequency frequency3(4000, 20000, 32, 0.0067);
+	SoundFrequency frequency4(8000, 40000, 32, 0.0206);
 
 	std::vector<float> decibels1, decibels2, decibels3, decibels4;
 	for (int i = 0; i < 10; i++) {
@@ -156,11 +157,13 @@ Scene loadSponza() {
 	source1.direction = normalize(vec3f(-1.0f, 0.0f, 0.0f));
 	source1.position = vec3f(-900, 150, model->bounds.center().z);
 	source1.setFrequencies(frequencies1);
+	source1.radius = 10.0f;
 
 	SoundSource source2;
 	source2.direction = normalize(vec3f(-1.0f, 0.0f, 0.0f));
 	source2.position = vec3f(-800, 150, model->bounds.center().z + 100);
 	source2.setFrequencies(frequencies2);
+	source2.radius = 20.0f;
 
 	soundSources.push_back(source1);
 	soundSources.push_back(source2);

@@ -49,7 +49,7 @@ void SonelManager::calculate() {
 	sonelMapReceiver.setSonels(sonels);
 	simpleSoundSources = SimpleSoundSource::from(sonelMapper.getSonelMapData());
     optixScene.setSonels(sonels, 0.15f);
-	optixScene.setSoundSources(&simpleSoundSources, 0.15f);
+	optixScene.setSoundSources(&simpleSoundSources);
     optixScene.build();
 
 	sonelMapReceiver.execute();

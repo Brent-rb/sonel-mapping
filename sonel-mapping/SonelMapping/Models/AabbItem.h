@@ -11,6 +11,7 @@
 class AabbItem {
 public:
 	virtual gdt::vec3f getPosition() const = 0;
+	virtual float getRadius() const = 0;
 };
 
 #endif //SONEL_MAPPING_AABBITEM_H
