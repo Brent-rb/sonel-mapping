@@ -7,6 +7,7 @@
 
 #include <optix_types.h>
 #include "gdt/math/vec.h"
+#include "GatherEntry.h"
 
 struct SonelReceiverParams {
 	struct {
@@ -16,19 +17,23 @@ struct SonelReceiverParams {
 		gdt::vec3f vertical;
 	} camera;
 
-	uint32_t frequencySize;
-	uint32_t timestepSize;
-	uint32_t maxDepth;
-	uint32_t rayAmount;
+	gdt::vec3f receiverPosition;
 
-	float* energies;
+	GatherEntry* entryBuffer;
+	uint16_t* hitBuffer;
+	float* absorptionArray;
+
+	uint16_t frequencySize;
+	uint32_t timestepSize;
+	uint32_t rayAmount;
+	uint16_t maxSonels;
+	uint64_t frameIndex;
 
 	float timestep;
 	float duration;
 	float soundSpeed;
 	float sonelRadius;
-	float soundSourceRadius;
-	float timeOffset;
+	float receiverRadius;
 
 	OptixTraversableHandle traversable;
 };

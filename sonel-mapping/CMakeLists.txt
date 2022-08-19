@@ -61,7 +61,7 @@ add_executable(sonel-mapping
 
         SonelMapping/Models/Sonel.h
         SonelMapping/Models/SoundSource.h
-        SonelMapping/Models/SonelMap.h
+        "SonelMapping/Models/SimulationData.h"
 
         SonelMapping/SonelManager.h
         SonelMapping/SonelManager.cpp
@@ -80,7 +80,7 @@ add_executable(sonel-mapping
         Cuda/CudaSonelReceiverHelper.h
         Cuda/CudaSceneSettings.h
         main.cpp
-       "Cuda/CudaBounceType.h")
+       "Cuda/CudaBounceType.h" "SonelMapping/Models/GatherEntry.h" "SonelMapping/Models/SoundFrequency.h" "SonelMapping/Models/AbsorptionData.h")
 
 target_link_libraries(
 sonel-mapping

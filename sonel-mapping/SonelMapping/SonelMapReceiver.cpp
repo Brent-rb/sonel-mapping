@@ -6,6 +6,8 @@
 #include <iostream>
 #include <fstream>
 #include "../Cuda/CudaSonelReceiverHelper.h"
+#include <chrono>
+using namespace std::chrono;
 
 extern "C" char embedded_receiver_code[];
 
@@ -29,8 +31,10 @@ void SonelMapReceiver::initialize(SonelMapReceiverConfig newConfig) {
 	launchParams.timestep = newConfig.timestep;
 	launchParams.timestepSize = newConfig.timestepSize;
 	launchParams.sonelRadius = SEARCH_RADIUS;
-	launchParams.soundSourceRadius = SEARCH_RADIUS;
 	launchParams.rayAmount = newConfig.rayAmount;
+	launchParams.maxSonels = newConfig.maxSonels;
+	launchParams.receiverRadius = 0.31f;
+	launchParams.receiverPosition = gdt::vec3f(1.0, 1.0, -1.0);
 
 	init();
 }
@@ -42,38 +46,68 @@ void SonelMapReceiver::setCamera(const Camera& camera) {
 }
 
 void SonelMapReceiver::execute() {
+	auto configureStart = high_resolution_clock::now();
 	configureScene();
+	auto configureEnd = high_resolution_clock::now();
+	auto configureDelta = configureEnd - configureStart;
+	auto configureMs = duration_cast<milliseconds>(configureDelta);
+	printf("	[Time] Receiver configure took %dms %fs\n", configureMs, configureMs / 1000.0f);
+
+	auto hitrecordStart = high_resolution_clock::now();
 	createHitRecords();
+	auto hitrecordEnd = high_resolution_clock::now();
+	auto hitrecordDelta = hitrecordEnd - hitrecordStart;
+	auto hitrecordMs = duration_cast<milliseconds>(hitrecordDelta);
+	printf("	[Time] Receiver hit record took %dms %fs\n", hitrecordMs, hitrecordMs / 1000.0f);
+
 	initEchogram();
 
-    launchParams.timeOffset = 0;
-    printf("Simulating\n");
+	auto mapperStart = high_resolution_clock::now();
     simulate();
-    printf("Adding to echogram\n");
-    addLaunchToEchogram();
+	auto mapperEnd = high_resolution_clock::now();
+	auto mapperDelta = mapperEnd - mapperStart;
+	auto mapperMs = duration_cast<milliseconds>(mapperDelta);
+	printf("	[Time] Receiver simulate took %dms %fs\n", mapperMs, mapperMs / 1000.0f);
 
+	auto echogramStart = high_resolution_clock::now();
+    addLaunchToEchogram();
+	auto echogramEnd = high_resolution_clock::now();
+	auto echogramDelta = echogramEnd - echogramStart;
+	auto echogramMs = duration_cast<milliseconds>(echogramDelta);
+	printf("	[Time] Receiver adding launch took %dms %fs\n", echogramMs, echogramMs / 1000.0f);
+
+	auto writeStart = high_resolution_clock::now();
 	writeEchogram();
+	auto writeEnd = high_resolution_clock::now();
+	auto writeDelta = writeEnd - writeStart;
+	auto writeMs = duration_cast<milliseconds>(writeDelta);
+	printf("	[Time] Receiver write took %dms %fs\n", writeMs, writeMs / 1000.0f);
 }
 
 void SonelMapReceiver::simulate() {
-	bufferSize = getDataArraySize() * config.rayAmount;
-	energyBuffer.alloc(sizeof(float) * bufferSize);
-	launchParams.energies = reinterpret_cast<float*>(energyBuffer.getCuDevicePointer());
+	entriesBuffer.alloc(sizeof(GatherEntry) * config.frequencySize * config.rayAmount * config.maxSonels);
+	hitBuffer.alloc(sizeof(uint16_t) * config.frequencySize * config.rayAmount);
+	
+	std::vector<float> absorptionVector(config.absorptionData->absorptions, config.absorptionData->absorptions + config.absorptionData->absorptionSize);
+	absorptionBuffer.allocAndUpload(absorptionVector);
 
-	launchOptix(config.rayAmount, 1, 1);
+	launchParams.absorptionArray = reinterpret_cast<float*>(absorptionBuffer.cudaPointer);
+	launchParams.entryBuffer = reinterpret_cast<GatherEntry*>(entriesBuffer.cudaPointer);
+	launchParams.hitBuffer = reinterpret_cast<uint16_t*>(hitBuffer.cudaPointer);
+
+	launchOptix(config.rayAmount, config.frequencySize, 1);
 	cudaSyncCheck("SonelMapReceiver", "Failed sync");
 }
 
 void SonelMapReceiver::configureScene() {
-	// optixScene.setSonels(sonels, SEARCH_RADIUS);
 	optixScene.build();
 	launchParams.traversable = optixScene.getInstanceHandle();
 }
 
 void SonelMapReceiver::initEchogram() {
-	echogram.resize(config.timestepSize);
-	for (unsigned int timestep = 0; timestep < config.timestepSize; timestep++) {
-		echogram[timestep].resize(MAX_FREQUENCIES, 0.0f);
+	echogram.resize(config.simulationData->frequencySize);
+	for (unsigned int frequency = 0; frequency < config.simulationData->frequencySize; frequency++) {
+		echogram[frequency].resize(config.timestepSize, 0.0f);
 	}
 
 	highestTimestep = 0;
@@ -81,82 +115,92 @@ void SonelMapReceiver::initEchogram() {
 
 void SonelMapReceiver::addLaunchToEchogram() {
 	// Storage for current launch
-	std::vector<float> rtData;
-	std::vector<std::vector<float>> tempEchogram;
-    std::vector<std::vector<float>> hits;
+	std::vector<GatherEntry> gatherEntries;
+	std::vector<uint16_t> hits;
 
-	rtData.resize(bufferSize);
-	energyBuffer.download(rtData.data(), bufferSize);
+	uint64_t entryBufferSize = config.frequencySize * config.rayAmount * config.maxSonels;
+	uint64_t hitBufferSize = config.frequencySize * config.rayAmount;
+	uint32_t maxTimesteps = config.timestepSize;
 
-    hits.resize(config.timestepSize);
-	tempEchogram.resize(config.timestepSize);
-	for (unsigned int timestep = 0; timestep < config.timestepSize; timestep++) {
-		tempEchogram[timestep].resize(MAX_FREQUENCIES, 0.0f);
-        hits[timestep].resize(MAX_FREQUENCIES, 0.0f);
-	}
+	gatherEntries.resize(entryBufferSize);
+	hits.resize(hitBufferSize);
 
-	uint32_t rayStride = getDataArraySize();
-	for (unsigned int rayIndex = 0; rayIndex < config.rayAmount; rayIndex++) {
-		uint32_t rayStart = rayIndex * rayStride;
-        float rayHits = rtData[rayStart] + ARRAY_HEADER_HITS_OFFSET;
+	entriesBuffer.download(gatherEntries.data(), entryBufferSize);
+	hitBuffer.download(hits.data(), hitBufferSize);
 
-        // printf("[SonelMapReceiver] Ray[%d] hit %d sonels\n", rayIndex, static_cast<unsigned int>(rayHits));
+	uint32_t directHits = 0;
 
-		for (unsigned int frequencyIndex = 0; frequencyIndex < MAX_FREQUENCIES; frequencyIndex++) {
-            for (unsigned int sonelIndex = 0; sonelIndex < MAX_SONELS; sonelIndex++) {
-                uint32_t sonelStart = rayStart + getSonelIndex(frequencyIndex, sonelIndex);
-                float timestamp = rtData[sonelStart + DATA_TIME_OFFSET];
-                float energy = rtData[sonelStart + DATA_ENERGY_OFFSET];
-                auto timeIndex = static_cast<uint32_t>(floor((timestamp / config.timestep) + 0.5));
+	for(uint32_t frequencyIndex = 0; frequencyIndex < config.simulationData->frequencySize; frequencyIndex++) {
+		uint32_t frequency = config.simulationData->frequencies[frequencyIndex];
 
-                // When we encounter a 0 value we are probably done with this frequency
-                // Timestamp COULD be 0 but unlikely
-                if (energy < 0.000000000001f || timestamp < 0.00000000001f) {
-                    break;
-                }
+		for(uint32_t rayIndex = 0; rayIndex < config.rayAmount; rayIndex++) {
+			uint64_t rayStart = frequencyIndex * config.rayAmount * config.maxSonels + rayIndex * config.maxSonels; 
+			uint32_t rayHits = hits[frequencyIndex * config.rayAmount + rayIndex];
+			float maxDistance = 0.0f;
+			bool directContribution = false;
 
-                // Outside of range
-                if (timeIndex < 0 || timeIndex >= echogram.size()) {
-                    continue;
-                }
+			for(uint32_t hitIndex = 0; hitIndex < rayHits; hitIndex++) {
+				GatherEntry& entry = gatherEntries[rayStart + hitIndex];
+				maxDistance = max(maxDistance, entry.distance);
 
-                tempEchogram[timeIndex][frequencyIndex] += (energy);
-                hits[timeIndex][frequencyIndex] += 1.0f;
-                highestTimestep = max(timeIndex, highestTimestep);
-            }
+				if(entry.distance < 0.000000001) {
+					directContribution = true;
+				}
+			}
+
+			float area = (M_PI * maxDistance * maxDistance);
+
+			for(uint32_t hitIndex = 0; hitIndex < rayHits; hitIndex++) {
+				GatherEntry& entry = gatherEntries[rayStart + hitIndex];
+
+				auto timeIndex = static_cast<uint32_t>(floor((entry.time / config.timestep)));
+				if(timeIndex < 0 || timeIndex >= config.timestepSize) {
+					continue;
+				}
+				
+				highestTimestep = max(timeIndex, highestTimestep);
+
+				if(directContribution) {
+					directHits++;
+					echogram[frequencyIndex][timeIndex] += entry.energy;
+				}
+				else {
+					echogram[frequencyIndex][timeIndex] += (entry.energy / area) / config.rayAmount;
+				}
+			}
 		}
 	}
 
+	printf("[SonelMapReceiver] Simulation encoutered %d direct hits.\n", directHits);
+
+	/*
 	float sonelArea = (SEARCH_RADIUS * SEARCH_RADIUS * 3.141592653589793238f);
 	float brdf = 1.0f / (2.0f * 3.141592653589793238f);
 	for (unsigned int time = 0; time < min(config.timestepSize, highestTimestep); time++) {
 		for (unsigned int frequency = 0; frequency < config.frequencySize; frequency++) {
-            float hit = hits[time][frequency];
-
+ 
 			if (hit > 1.0f) {
-				echogram[time][frequency] += (tempEchogram[time][frequency]) / sonelArea * brdf;
+				echogram[frequency][time] == (tempEchogram[frequency][time]);
 			}
 		}
 	}
+	*/
 }
 
 void SonelMapReceiver::writeEchogram() {
-	for (unsigned int timestep = 0; timestep < min(static_cast<uint32_t>(echogram.size()), highestTimestep); timestep++) {
-		std::cout << timestep * config.timestep;
-		for (unsigned int frequency = 0; frequency < launchParams.frequencySize; frequency++) {
-			float energy = echogram[timestep][frequency];
-			float minEnergy = 1.0f;
+	for(unsigned int frequency = 0; frequency < launchParams.frequencySize; frequency++) {
+		for (unsigned int timestep = 0; timestep < min(config.timestepSize, highestTimestep); timestep++) {
+			float energy = echogram[frequency][timestep];
+			float minEnergy = 1e-5;
 			double decibel = 0;
 
 			if (energy >= minEnergy)
-				decibel = (log10(energy) * 10.0);
+				decibel = (log10(energy / 1e-3) * 10.0);
 
-			std::cout << "; " << decibel;
+			std::cout << decibel << ",";
 		}
 
-		if (timestep != echogram.size() - 1) {
-			std::cout << "\n";
-		}
+		std::cout << "\n";
 	}
 }
 
@@ -200,9 +244,26 @@ void SonelMapReceiver::configureHitProgram(
 }
 
 void SonelMapReceiver::addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
+	auto geometryRecordStart = high_resolution_clock::now();
 	addGeometryHitRecords(hitRecords);
+	auto geometryRecordEnd = high_resolution_clock::now();
+	auto geometryRecordDelta = geometryRecordEnd - geometryRecordStart;
+	auto geometryRecordMs = duration_cast<milliseconds>(geometryRecordDelta);
+	printf("		[Time] Receiver geometry records took %dms %fs\n", geometryRecordMs, geometryRecordMs / 1000.0f);
+	
+	auto hitRecordStart = high_resolution_clock::now();
 	addSonelHitRecords(hitRecords);
+	auto hitRecordEnd = high_resolution_clock::now();
+	auto hitRecordDelta = hitRecordEnd - hitRecordStart;
+	auto hitRecordMs = duration_cast<milliseconds>(hitRecordDelta);
+	printf("		[Time] Receiver hit records took %dms %fs\n", hitRecordMs, hitRecordMs / 1000.0f);
+
+	auto ssRecordStart = high_resolution_clock::now();
 	addSoundSourceHitRecords(hitRecords);
+	auto ssRecordEnd = high_resolution_clock::now();
+	auto ssRecordDelta = ssRecordEnd - ssRecordStart;
+	auto ssRecordMs = duration_cast<milliseconds>(ssRecordDelta);
+	printf("		[Time] Receiver sound source records took %dms %fs\n", ssRecordMs, ssRecordMs / 1000.0f);
 }
 
 void SonelMapReceiver::addGeometryHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {

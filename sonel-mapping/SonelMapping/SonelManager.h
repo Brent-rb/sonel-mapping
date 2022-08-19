@@ -5,6 +5,7 @@
 #include "SonelMapVisualizer.h"
 #include "../UI/Camera.h"
 #include "SonelMapReceiver.h"
+#include "Models/AbsorptionData.h"
 
 class SonelManager {
 public:
@@ -33,5 +34,6 @@ protected:
 	SonelMapReceiver sonelMapReceiver;
 
 	std::vector<SimpleSoundSource> simpleSoundSources;
+	AbsorptionData absorptionData;
 };
 

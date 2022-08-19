@@ -3,11 +3,11 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 
-#include "../SonelMapping/Models/SonelMap.h"
+#include "../SonelMapping/Models/SimulationData.h"
 
 class CudaSonelMapperParams {
 public:
-	SonelMapData* sonelMapData;
+	SimulationData* sonelMapData;
 
 	uint16_t localFrequencyIndex;
     uint16_t globalFrequencyIndex;

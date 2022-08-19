@@ -70,7 +70,7 @@ extern "C" __global__ void __closesthit__sonelRadiance() {
 		sonel.distance = prd.distance;
 		sonel.time = (prd.distance / params.sonelMapData->soundSpeed) + prd.timeOffset;
 		// printf("Sonel Time %f\n", sonel.time);
-		sonel.incidence = rayDir;
+		sonel.incidence = gdt::normalize(rayDir);
 		prd.index += 1;
 		prd.depth += 1;
 
@@ -138,7 +138,7 @@ extern "C" __global__ void __raygen__generateSonelMap() {
 		return;
 	}
 
-	float energy = powf(10.0f, decibels / 10.0f) / static_cast<float>(soundFrequency.sonelAmount);
+	float energy = powf(10.0f, decibels / 10.0f) / static_cast<float>(soundFrequency.sonelAmount) * 1e-3;
 	// printf("Simulating with sonel energy: %f, %f, %d\n", energy, decibels, soundFrequency.sonelAmount);
 
 	PerRayData prd = PerRayData(random, rayIndex, energy);

@@ -4,11 +4,11 @@
 #include "Sonel.h"
 #include "SoundSource.h"
 
-class SonelMapData {
+class SimulationData {
 public:
-	SonelMapData(): 
-		timestep(0.01f), duration(6.0f), soundSpeed(343.0f), 
-		soundSources(nullptr), soundSourceSize(0) ,
+	SimulationData() :
+		timestep(0.01f), duration(6.0f), soundSpeed(343.0f), humidity(50),
+		soundSources(nullptr), soundSourceSize(0),
         frequencies(nullptr), frequencySize(0) {
 
 	}
@@ -31,26 +31,27 @@ public:
 		destroy();
 
         determineFrequencies(inputSources);
+		checkFrequenciesAllowed(inputSources);
 
 		soundSourceSize = static_cast<uint32_t>(inputSources.size());
 		soundSources = new SoundSource[soundSourceSize];
 		memcpy(soundSources, inputSources.data(), soundSourceSize * sizeof(SoundSource));
 	}
 
-	SonelMapData* cudaCreate() {
-		SonelMapData* deviceSonelMap;
+	SimulationData* cudaCreate() {
+		SimulationData* deviceSonelMap;
 
-		cudaMalloc(&deviceSonelMap, sizeof(SonelMapData));
+		cudaMalloc(&deviceSonelMap, sizeof(SimulationData));
 		cudaCopy(deviceSonelMap);
 
 		return deviceSonelMap;
 	}
 
-	void cudaCopy(SonelMapData* deviceSonelMap) {
-		cudaMemcpy(deviceSonelMap, this, sizeof(SonelMapData), cudaMemcpyHostToDevice);
+	void cudaCopy(SimulationData* deviceSonelMap) {
+		cudaMemcpy(deviceSonelMap, this, sizeof(SimulationData), cudaMemcpyHostToDevice);
 	}
 
-	void cudaUpload(SonelMapData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
+	void cudaUpload(SimulationData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
 		cudaCopy(deviceSonelMap);
 
 		SoundSource* deviceSoundSources;
@@ -65,21 +66,27 @@ public:
         cudaMemcpy(&(deviceSonelMap->frequencies), &deviceFrequencies, sizeof(uint32_t*), cudaMemcpyHostToDevice);
 	}
 
-	void cudaDownload(SonelMapData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
-		SonelMapData deviceCopy;
-		cudaMemcpy(&deviceCopy, deviceSonelMap, sizeof(SonelMapData), cudaMemcpyDeviceToHost);
+	void cudaDownload(SimulationData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
+		SimulationData deviceCopy;
+		cudaMemcpy(&deviceCopy, deviceSonelMap, sizeof(SimulationData), cudaMemcpyDeviceToHost);
 
 		soundSources[sourceIndex].cudaDownload(&(deviceCopy.soundSources[sourceIndex]), frequencyIndex);
 	}
 
-	void cudaDestroy(SonelMapData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
-		SonelMapData deviceCopy;
-		cudaMemcpy(&deviceCopy, deviceSonelMap, sizeof(SonelMapData), cudaMemcpyDeviceToHost);
+	void cudaDownloadSonels(uint16_t sourceIndex, uint16_t frequencyIndex) {
+		soundSources[sourceIndex].cudaDownloadSonels(frequencyIndex);
+	}
+
+	void cudaDestroy(SimulationData* deviceSonelMap, uint16_t sourceIndex, uint16_t frequencyIndex) {
+		SimulationData deviceCopy;
+		cudaMemcpy(&deviceCopy, deviceSonelMap, sizeof(SimulationData), cudaMemcpyDeviceToHost);
 
 		soundSources[sourceIndex].cudaDestroy(&(deviceCopy.soundSources[sourceIndex]), frequencyIndex);
 
 		cudaFree(deviceCopy.soundSources);
         cudaFree(deviceCopy.frequencies);
+		deviceCopy.soundSources = nullptr;
+		deviceCopy.frequencies = nullptr;
 	}
 
     uint16_t getFrequencyIndex(uint32_t frequency) const {
@@ -113,17 +120,38 @@ private:
         std::sort(tempFrequencies.begin(), tempFrequencies.end());
         frequencies = new uint32_t[tempFrequencies.size()];
         memcpy(frequencies, tempFrequencies.data(), sizeof(uint32_t) * tempFrequencies.size());
-        frequencySize = static_cast<uint32_t>(tempFrequencies.size());
+		frequencySize = static_cast<uint16_t>(tempFrequencies.size());
+
+		
     }
 
+	__host__ void checkFrequenciesAllowed(const std::vector<SoundSource>& inputSources) {
+		std::set<uint16_t> allowedFrequencySet(allowedFrequencies, allowedFrequencies + 7);
+
+		for(int i = 0; i < inputSources.size(); i++) {
+			const SoundSource& source = inputSources[i];
+
+			for(int f = 0; f < source.frequencySize; f++) {
+				const SoundFrequency& frequency = source.frequencies[f];
+
+				if(allowedFrequencySet.count(frequency.frequency) == 0) {
+					std::cerr << "Frequency " << frequency.frequency << " is not allowed." << std::endl;
+					exit(EXIT_FAILURE);
+				}
+			}
+		}
+	}
 
 public:
 	float timestep;
 	float duration;
 	float soundSpeed;
+	uint16_t humidity;
 
 	SoundSource* soundSources;
 	uint32_t soundSourceSize;
     uint32_t* frequencies;
     uint16_t frequencySize;
+
+	const uint16_t allowedFrequencies[7] = {63, 125, 250, 500, 1000, 2000, 4000};
 };

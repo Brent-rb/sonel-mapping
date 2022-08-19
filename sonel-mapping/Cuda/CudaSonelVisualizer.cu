@@ -68,7 +68,7 @@ extern "C" __global__ void __closesthit__radiance() {
     if (sbtData.type == SOUND_SOURCE) {
         const SimpleSoundSource soundSource = *(sbtData.soundSource);
         prd.pixelColor = vec3f(0.5f, 0.1f, 0.7f);
-        gdt::vec3f soundSourceHit = getSoundSourceHit(soundSource, soundSource.radius, rayOrigin, rayDirection);
+        gdt::vec3f soundSourceHit = getSoundSourceHit(soundSource, rayOrigin, rayDirection);
         gdt::vec3f soundSourceNormal = normalize(soundSource.position - soundSourceHit);
         prd.pixelColor *=  dot(soundSourceNormal, rayDirection);
         return;
@@ -146,8 +146,9 @@ extern "C" __global__ void __closesthit__radiance() {
         prd.pixelColor *= dot(shadingNormal, rayDirection);
     }
     else {
-        // printf("Energy %f\n", energy);
-        prd.pixelColor = vec3f(energy / 400000.0f, 0.0, 0.5f);
+		float decibelValue = log10f(energy / powf(10.0, -3.0)) * 10.0f;
+		// printf("Decibel value %f\n", energy);
+        prd.pixelColor = vec3f(decibelValue, 0.0, 0.5f);
     }
 }
 
@@ -187,7 +188,7 @@ extern "C" __global__ void __intersection__radiance() {
 	}
     if (sbtData->type == SOUND_SOURCE) {
         const SimpleSoundSource soundSource = *(sbtData->soundSource);
-        float t = getSoundSourceHitT(soundSource, soundSource.radius, rayOrigin, rayDirection);
+        float t = getSoundSourceHitT(soundSource, rayOrigin, rayDirection);
 
         if (t > -0.99) {
             optixReportIntersection(t, 0);

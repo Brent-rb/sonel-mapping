@@ -80,13 +80,15 @@ Scene loadBox() {
         /* up */vec3f(0.f,1.f,0.f)
     };
 
-    SoundFrequency frequency(8000, 50000, 32, 0.0206);
+    SoundFrequency frequency(250, 150000, 32);
     std::vector<float> decibels;
     decibels.push_back(90.14f);
 
     frequency.setDecibels(decibels);
     std::vector<SoundFrequency> frequencies;
+	// frequency2.setDecibels(decibels);
     frequencies.push_back(frequency);
+	// frequencies.push_back(frequency2);
 
     SoundSource source;
 
@@ -122,10 +124,9 @@ Scene loadSponza() {
 	std::vector<SoundFrequency> frequencies1;
 	std::vector<SoundFrequency> frequencies2;
 
-	SoundFrequency frequency1(1000, 5000, 32, 0.0012);
-	SoundFrequency frequency2(2000, 10000, 32, 0.0023);
-	SoundFrequency frequency3(4000, 20000, 32, 0.0067);
-	SoundFrequency frequency4(8000, 40000, 32, 0.0206);
+	SoundFrequency frequency1(1000, 5000, 32);
+	SoundFrequency frequency2(2000, 10000, 32);
+	SoundFrequency frequency3(4000, 20000, 32);
 
 	std::vector<float> decibels1, decibels2, decibels3, decibels4;
 	for (int i = 0; i < 10; i++) {
@@ -146,12 +147,10 @@ Scene loadSponza() {
 	frequency1.setDecibels(decibels1);
 	frequency2.setDecibels(decibels2);
 	frequency3.setDecibels(decibels3);
-	frequency4.setDecibels(decibels4);
 
 	frequencies1.push_back(frequency1);
 	frequencies1.push_back(frequency3);
 	frequencies2.push_back(frequency2);
-	frequencies2.push_back(frequency4);
 
 	SoundSource source1;
 	source1.direction = normalize(vec3f(-1.0f, 0.0f, 0.0f));

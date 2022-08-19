@@ -8,6 +8,8 @@
 #include "SmOptixProgram.h"
 #include "Models/SonelReceiverParams.h"
 #include "../UI/Camera.h"
+#include "Models/SimulationData.h"
+#include "Models/AbsorptionData.h"
 
 struct SonelMapReceiverConfig {
 	uint32_t rayAmount = 0;
@@ -16,7 +18,9 @@ struct SonelMapReceiverConfig {
 	float timestep = 0.0f;
 	uint32_t frequencySize = 0;
 	uint32_t timestepSize = 0;
-	std::vector<SoundSource>* soundSources = nullptr;
+	uint16_t maxSonels = 100;
+	SimulationData* simulationData = nullptr;
+	AbsorptionData* absorptionData = nullptr;
 };
 
 class SonelMapReceiver: public SmOptixProgram<SonelReceiverParams, EmptyRecord, EmptyRecord, SmSbtData> {
@@ -56,7 +60,11 @@ protected:
 	void writeEchogram();
 private:
 	SonelMapReceiverConfig config;
-	CudaBuffer energyBuffer;
+
+	CudaBuffer entriesBuffer;
+	CudaBuffer hitBuffer;
+	CudaBuffer absorptionBuffer;
+
 	std::vector<Sonel>* sonels;
 	std::vector<std::vector<float>> echogram;
 

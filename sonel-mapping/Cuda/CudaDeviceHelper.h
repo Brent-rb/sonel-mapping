@@ -6,13 +6,13 @@
 #define SONEL_MAPPING_CUDADEVICEHELPER_H
 
 
-inline __device__ float getSoundSourceHitT(const SimpleSoundSource& soundSource, float radius, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
+inline __device__ float getSoundSourceHitT(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
     gdt::vec3f center = soundSource.position;
     gdt::vec3f oc = rayOrigin - center;
 
     float a = dot(rayDirection, rayDirection);
     float b = 2.0 * dot(oc, rayDirection);
-    float c = dot(oc, oc) - radius * radius;
+    float c = dot(oc, oc) - soundSource.radius * soundSource.radius;
     float discriminant = b * b - 4 * a * c;
 
     if(discriminant < 0){
@@ -23,8 +23,8 @@ inline __device__ float getSoundSourceHitT(const SimpleSoundSource& soundSource,
     }
 }
 
-inline __device__ gdt::vec3f getSoundSourceHit(const SimpleSoundSource& soundSource, float radius, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
-    float t = getSoundSourceHitT(soundSource, radius, rayOrigin, rayDirection);
+inline __device__ gdt::vec3f getSoundSourceHit(const SimpleSoundSource& soundSource, const gdt::vec3f& rayOrigin, const gdt::vec3f& rayDirection) {
+    float t = getSoundSourceHitT(soundSource, rayOrigin, rayDirection);
     gdt::vec3f hitPosition = gdt::vec3f();
 
     if (t > 0.0f) {

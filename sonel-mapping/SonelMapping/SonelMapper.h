@@ -7,6 +7,7 @@
 
 #include "SmOptixProgram.h"
 #include "../Cuda/CudaSonelMapperParams.h"
+#include "models/SimulationData.h"
 
 struct SonelMapperConfig {
 	std::vector<SoundSource>& soundSources;
@@ -27,7 +28,7 @@ public:
 	void execute() override;
 	std::vector<Sonel>* getSonelArray();
 
-	const SonelMapData& getSonelMapData() const;
+	SimulationData& getSimulationData();
 
 protected:
 	const char *getLaunchParamsName() override;
@@ -43,8 +44,8 @@ protected:
 private:
 	// Data
 	float maxTime;
-	SonelMapData sonelMap;
-	SonelMapData* sonelMapDevicePtr;
+	SimulationData simulationData;
+	SimulationData* sonelMapDevicePtr;
 
 	std::vector<Sonel> sonelArray;
 };

@@ -7,7 +7,7 @@
 
 #include "AabbItem.h"
 #include "SoundSource.h"
-#include "SonelMap.h"
+#include "SimulationData.h"
 
 class SimpleSoundSource: public AabbItem {
 public:
@@ -24,12 +24,12 @@ public:
 
 	}
 
-	static std::vector<SimpleSoundSource> from(const SonelMapData& sonelMap) {
+	static std::vector<SimpleSoundSource> from(const SimulationData& simulationData) {
 		std::vector<SimpleSoundSource> simpleSources;
 		SimpleSoundSource simpleSource;
 
-		SoundSource* soundSources = sonelMap.soundSources;
-		for(uint32_t sourceIndex = 0; sourceIndex < sonelMap.soundSourceSize; sourceIndex++) {
+		SoundSource* soundSources = simulationData.soundSources;
+		for(uint32_t sourceIndex = 0; sourceIndex < simulationData.soundSourceSize; sourceIndex++) {
 			SoundSource& soundSource = soundSources[sourceIndex];
 			simpleSource.position = soundSource.position;
 			simpleSource.direction = soundSource.direction;
@@ -37,8 +37,7 @@ public:
 			for (uint32_t frequencyIndex = 0; frequencyIndex < soundSource.frequencySize; frequencyIndex++) {
 				SoundFrequency& soundFrequency = soundSource.frequencies[frequencyIndex];
 				simpleSource.frequency = soundFrequency.frequency;
-				simpleSource.frequencyIndex = sonelMap.getFrequencyIndex(simpleSource.frequency);
-				simpleSource.absorption = soundFrequency.absorption;
+				simpleSource.frequencyIndex = simulationData.getFrequencyIndex(simpleSource.frequency);
 
 				for (uint32_t decibelIndex = 0; decibelIndex < soundFrequency.decibelSize; decibelIndex++) {
 					float decibel = soundFrequency.decibels[decibelIndex];
@@ -47,7 +46,7 @@ public:
 					}
 
 					simpleSource.timestampIndex = decibelIndex;
-					simpleSource.timestamp = static_cast<float>(decibelIndex) * sonelMap.timestep;
+					simpleSource.timestamp = static_cast<float>(decibelIndex) * simulationData.timestep;
 					simpleSource.decibel = decibel;
 					simpleSource.radius = soundSource.radius;
 
