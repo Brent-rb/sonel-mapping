@@ -26,7 +26,7 @@ public:
     void setFrequencySize(uint32_t size);
 	void setSonelArray(std::vector<Sonel>* newSonelArray);
 
-	void execute() override;
+	void execute(std::ofstream& timingFile) override;
     void nextFrame();
     void previousFrame();
 

@@ -9,7 +9,7 @@
 
 #include "OptixSetup.h"
 #include "OptixScene.h"
-
+#include <fstream>
 
 struct EmptyRecord {
 
@@ -25,7 +25,7 @@ struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) SmRecord {
 template<typename X, typename U, typename V, typename W>
 class SmOptixProgram {
 public:
-	virtual void execute() = 0;
+	virtual void execute(std::ofstream& timingFile) = 0;
 
 	virtual void destroy() {
 		if (launchParamsPtr != 0) {
@@ -176,14 +176,14 @@ private:
 	void createOptixModule() {
 		// Apply default config
 		moduleCompileOptions.maxRegisterCount = 50;
-		moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-		moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+		moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_3;
+		moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 		// Allow child to config as well
 		configureModuleCompileOptions(moduleCompileOptions);
 
 		// Apply default config
 		pipelineCompileOptions = {};
-		pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+		pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS | OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
 		pipelineCompileOptions.usesMotionBlur = false;
 		pipelineCompileOptions.numPayloadValues = 2;
 		pipelineCompileOptions.numAttributeValues = 2;

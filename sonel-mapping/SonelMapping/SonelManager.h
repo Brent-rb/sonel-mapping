@@ -6,6 +6,8 @@
 #include "../UI/Camera.h"
 #include "SonelMapReceiver.h"
 #include "Models/AbsorptionData.h"
+#include <iostream>
+#include <fstream>
 
 class SonelManager {
 public:
@@ -35,5 +37,7 @@ protected:
 
 	std::vector<SimpleSoundSource> simpleSoundSources;
 	AbsorptionData absorptionData;
+
+	std::ofstream timingFile;
 };
 

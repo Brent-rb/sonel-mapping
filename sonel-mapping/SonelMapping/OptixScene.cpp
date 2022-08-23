@@ -73,7 +73,7 @@ void OptixScene::buildGeometry() {
 	buildGeometryTextures();
 	buildGeometryAccelStructure();
 
-    printf("[OptixScene] Geometry built.\n");
+    // printf("[OptixScene] Geometry built.\n");
 }
 
 void OptixScene::buildSonels() {
@@ -82,7 +82,7 @@ void OptixScene::buildSonels() {
 	buildSonelInputs();
 	buildSonelAccelStructure();
 
-    printf("[OptixScene] Sonels built.\n");
+    // printf("[OptixScene] Sonels built.\n");
 }
 
 void OptixScene::buildSoundSources() {
@@ -91,7 +91,7 @@ void OptixScene::buildSoundSources() {
 	buildSoundSourceInputs();
 	buildSoundSourceAccelStructure();
 
-    printf("[OptixScene] SoundSources built.\n");
+    // printf("[OptixScene] SoundSources built.\n");
 }
 
 uint32_t OptixScene::getSonelSize() const {
@@ -103,7 +103,7 @@ uint32_t OptixScene::getSoundSourceSize() const {
 }
 
 void OptixScene::setModel(Model* newModel) {
-	printf("[OptixScene] Setting model, meshes: %llu\n", newModel->meshes.size());
+	// printf("[OptixScene] Setting model, meshes: %llu\n", newModel->meshes.size());
 
 	model = newModel;
 	meshSize = static_cast<uint32_t>(newModel->meshes.size());
@@ -116,7 +116,7 @@ Model* OptixScene::getModel() const {
 }
 
 void OptixScene::setSonels(std::vector<Sonel>* newSonels, float searchRadius) {
-	printf("[OptixScene] Setting sonels, size: %llu\n", newSonels->size());
+	// printf("[OptixScene] Setting sonels, size: %llu\n", newSonels->size());
 
 	sonels = newSonels;
 	sonelSize = static_cast<uint32_t>(newSonels->size());
@@ -130,7 +130,7 @@ std::vector<Sonel>* OptixScene::getSonels() const {
 }
 
 void OptixScene::setSoundSources(std::vector<SimpleSoundSource> *newSoundSources) {
-	printf("[OptixScene] Setting sound sources, size: %llu\n", newSoundSources->size());
+	// printf("[OptixScene] Setting sound sources, size: %llu\n", newSoundSources->size());
 
 	soundSources = newSoundSources;
 	soundSourceSize = static_cast<uint32_t>(newSoundSources->size());
@@ -183,7 +183,7 @@ void OptixScene::fill(const uint32_t meshIndex, SmSbtData& triangleData) const {
 }
 
 void OptixScene::clearGeometryBuffers() {
-	printf("[OptixScene] Clearing geometry buffers.\n");
+	// printf("[OptixScene] Clearing geometry buffers.\n");
 	for (uint32_t meshId = 0; meshId < vertexBuffer.size(); meshId++) {
 		vertexBuffer[meshId].tryFree();
 		indexBuffer[meshId].tryFree();
@@ -195,14 +195,14 @@ void OptixScene::clearGeometryBuffers() {
 }
 
 void OptixScene::clearSonelBuffers() {
-	printf("[OptixScene] Clearing sonel buffers.\n");
+	// printf("[OptixScene] Clearing sonel buffers.\n");
 	sonelAccelBuffer.tryFree();
 	sonelBuffer.tryFree();
     sonelAabbBuffer.tryFree();
 }
 
 void OptixScene::clearSoundSourceBuffers() {
-	printf("[OptixScene] Clearing sound source buffers.\n");
+	// printf("[OptixScene] Clearing sound source buffers.\n");
 	soundSourceAccelBuffer.tryFree();
 	soundSourceBuffer.tryFree();
 	soundSourceAabbBuffer.tryFree();

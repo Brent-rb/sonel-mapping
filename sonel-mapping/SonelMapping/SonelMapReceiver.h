@@ -32,7 +32,7 @@ public:
 
 	void initialize(SonelMapReceiverConfig newConfig);
 
-	void execute() override;
+	void execute(std::ofstream& timingFile) override;
 
 	void setCamera(const Camera& camera);
 	void setSonels(std::vector<Sonel>* sonels);

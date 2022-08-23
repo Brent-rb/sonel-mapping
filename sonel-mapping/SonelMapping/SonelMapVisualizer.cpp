@@ -92,7 +92,7 @@ void SonelMapVisualizer::initialize() {
 	init();
 }
 
-void SonelMapVisualizer::execute() {
+void SonelMapVisualizer::execute(std::ofstream& timingFile) {
 	// sanity check: make sure we launch only after first resize is
 	// already done:
 	if (launchParams.frame.size.x == 0) {

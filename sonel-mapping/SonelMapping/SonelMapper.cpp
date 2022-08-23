@@ -30,25 +30,21 @@ void SonelMapper::initialize(SonelMapperConfig config) {
 	init();
 }
 
-void SonelMapper::execute() {
-	auto executeStart = high_resolution_clock::now();
-
+void SonelMapper::execute(std::ofstream& timingFile) {
 	for (uint32_t sourceIndex = 0; sourceIndex < simulationData.soundSourceSize; sourceIndex++) {
 		launchParams.soundSourceIndex = sourceIndex;
 		SoundSource& soundSource = simulationData.soundSources[sourceIndex];
-		printf("[SonelMapper] Simulating sound source %d\n", sourceIndex);
 
 		for (uint32_t fIndex = 0; fIndex < soundSource.frequencySize; fIndex++) {
 			SoundFrequency& frequency = soundSource.frequencies[fIndex];
-			printf("\tSimulating frequency (%d, %d)\n", fIndex, frequency.frequency);
 
 			auto uploadStart = high_resolution_clock::now();
 			simulationData.cudaUpload(sonelMapDevicePtr, sourceIndex, fIndex);
 			auto uploadEnd = high_resolution_clock::now();
 			auto uploadDelta = uploadEnd - uploadStart;
-			auto durationMs = duration_cast<milliseconds>(uploadDelta);
-			auto durationS  = duration_cast<seconds>(uploadDelta);
-			printf("[Time] Uploading Simulation data took %dms %fs\n", durationMs, durationS);
+			auto uploadMs = duration_cast<microseconds>(uploadDelta);
+			timingFile << uploadMs.count() / 1000.0f << "\t";
+			printf("[Time][SonelMapper][Upload] %f\n", uploadMs.count() / 1000.0f);
 
 			launchParams.localFrequencyIndex = fIndex;
 			launchParams.globalFrequencyIndex = simulationData.getFrequencyIndex(frequency.frequency);
@@ -58,36 +54,30 @@ void SonelMapper::execute() {
 			cudaSyncCheck("SonelMapper", "Failed to sync.");
 			auto launchEnd = high_resolution_clock::now();
 			auto launchDelta = launchEnd - launchStart;
-			auto launchMs = duration_cast<milliseconds>(launchDelta);
-			auto launchS = duration_cast<seconds>(launchDelta);
-			printf("[Time] Tracing frequency took %dms %fs\n", launchMs, launchS);
+			auto launchMs = duration_cast<microseconds>(launchDelta);
+			timingFile << launchMs.count() / 1000.0f << "\t";
+			printf("[Time][SonelMapper][Launch] %f\n", launchMs.count() / 1000.0f);
 
 			auto downloadStart = high_resolution_clock::now();
 			downloadSonelDataForFrequency(fIndex, sourceIndex);
 			auto downloadEnd = high_resolution_clock::now();
 			auto downloadDelta = downloadEnd - downloadStart;
-			auto downloadMs = duration_cast<milliseconds>(downloadDelta);
-			auto downloadS = duration_cast<seconds>(downloadDelta);
-			printf("[Time] Downloading data for frequency took %dms %fs\n", downloadMs, downloadS);
+			auto downloadMs = duration_cast<microseconds>(downloadDelta);
+			timingFile << downloadMs.count() / 1000.0f << "\t";
+			printf("[Time][SonelMapper][Download] %f\n", downloadMs.count() / 1000.0f);
 
 			auto destroyStart = high_resolution_clock::now();
 			simulationData.cudaDestroy(sonelMapDevicePtr, sourceIndex, fIndex);
 			frequency.destroySonels();
 			auto destroyEnd = high_resolution_clock::now();
 			auto destroyDelta = destroyEnd - destroyStart;
-			auto destroyMs = duration_cast<milliseconds>(destroyDelta);
-			auto destroyS = duration_cast<seconds>(destroyDelta);
-			printf("[Time] Destroying data for frequency took %dms %fs\n", destroyMs, destroyS);
+			auto destroyMs = duration_cast<microseconds>(destroyDelta);
+			timingFile << destroyMs.count() / 1000.0f << "\t";
+			printf("[Time][SonelMapper][Destroy] %f\n", destroyMs.count() / 1000.0f);
 
 			launchParams.frameIndex += frequency.sonelAmount * frequency.sonelMaxDepth * frequency.decibelSize;
 		}
 	}
-
-	auto executeEnd = high_resolution_clock::now();
-	auto executeDelta = executeEnd - executeStart;
-	auto executeMs = duration_cast<milliseconds>(executeDelta);
-	auto executeS = duration_cast<seconds>(executeDelta);
-	printf("[Time] Tracing step took %dms %fs\n", executeMs, executeS);
 }
 
 const char *SonelMapper::getLaunchParamsName() {
@@ -138,14 +128,7 @@ void SonelMapper::addHitRecords(std::vector<SmRecord<SmSbtData>> &hitRecords) {
 void SonelMapper::downloadSonelDataForFrequency(uint32_t fIndex, uint32_t sourceIndex) {
 	SoundFrequency& frequency = simulationData.soundSources[sourceIndex].frequencies[fIndex];
 
-	auto destroyStart = high_resolution_clock::now();
 	frequency.cudaDownloadSonels();
-	auto destroyEnd = high_resolution_clock::now();
-	auto destroyDelta = destroyEnd - destroyStart;
-	auto destroyMs = duration_cast<milliseconds>(destroyDelta);
-	auto destroyS = duration_cast<seconds>(destroyDelta);
-	printf("	[Time] Downloading data for frequency took %dms %fs\n", destroyMs, destroyS);
-
 	Sonel* sonels = frequency.sonels;
 
 	uint64_t sonelAmount = 0;

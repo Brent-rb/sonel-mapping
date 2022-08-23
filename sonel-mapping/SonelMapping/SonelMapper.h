@@ -25,7 +25,7 @@ public:
 
 	void initialize(SonelMapperConfig config);
 
-	void execute() override;
+	void execute(std::ofstream& timingFile) override;
 	std::vector<Sonel>* getSonelArray();
 
 	SimulationData& getSimulationData();

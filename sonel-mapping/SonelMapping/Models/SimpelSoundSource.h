@@ -55,7 +55,7 @@ public:
 			}
 		}
 
-		std::cout << "Constructed " << simpleSources.size() << " simple sound sources." << std::endl;
+		// std::cout << "Constructed " << simpleSources.size() << " simple sound sources." << std::endl;
 
 		return simpleSources;
 	}
